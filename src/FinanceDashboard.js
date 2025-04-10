@@ -1,182 +1,69 @@
-import React, { useEffect, useState } from 'react';
-import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
-} from 'recharts';
+import React from 'react';
 
-function FinanceDashboard() {
-  const [form, setForm] = useState({ property: '', bank: '', balance: '' });
-  const [entries, setEntries] = useState([]);
-  const [editingIndex, setEditingIndex] = useState(null);
-  const [username, setUsername] = useState('');
+import { Link, useNavigate } from 'react-router-dom';
 
-  useEffect(() => {
-    const user = localStorage.getItem('user');
-    if (!user) {
-      window.location.href = '/login';
-    } else {
-      setUsername(user);
-      fetch(`${import.meta.env.VITE_API_URL}/api/entries/${user}`)
-        .then(res => res.json())
-        .then(data => setEntries(data))
-        .catch(err => console.error("Failed to fetch entries:", err));
-    }
-  }, []);
+function ProjectHub() {
+  const navigate = useNavigate();
 
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+  const handleLogout = () => {
+    localStorage.removeItem('user');
+    navigate('/');
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!form.property || !form.bank || !form.balance) return;
-
-    const data = {
-      ...form,
-      balance: parseFloat(form.balance)
-    };
-
-    if (editingIndex !== null) {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/entries/${username}/${editingIndex}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-
-      if (res.ok) {
-        const updated = [...entries];
-        updated[editingIndex] = data;
-        setEntries(updated);
-        setEditingIndex(null);
-        setForm({ property: '', bank: '', balance: '' });
-      }
-    } else {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/entries/${username}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-
-      if (res.ok) {
-        const newEntry = { ...data };
-        setEntries([...entries, newEntry]);
-        setForm({ property: '', bank: '', balance: '' });
-      }
-    }
-  };
-
-  const handleDelete = async (index) => {
-    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/entries/${username}/${index}`, {
-      method: 'DELETE',
-    });
-
-    if (res.ok) {
-      const updated = [...entries];
-      updated.splice(index, 1);
-      setEntries(updated);
-    }
-  };
-
-  const handleEdit = (index) => {
-    setForm(entries[index]);
-    setEditingIndex(index);
-  };
-
-  const totalProperties = entries.length;
-  const totalBalance = entries.reduce(
-    (acc, curr) => acc + parseFloat(curr.balance || 0),
-    0
-  );
-  const avgBalance = totalProperties > 0 ? totalBalance / totalProperties : 0;
-
-  const chartData = entries.map((entry, idx) => ({
-    name: entry.property || `Property ${idx + 1}`,
-    balance: parseFloat(entry.balance || 0),
-  }));
+  const projects = [
+    {
+      name: '📊 Finance Dashboard',
+      path: '/finance',
+      description: 'View net worth, real estate, loans, and account balances. Interactive charts and detailed breakdowns included.',
+    },
+    {
+      name: '🏠 Real Estate Tools',
+      path: '/real-estate',
+      description: 'Auto-fill home data, browse mock valuations, and preview property images in real time.',
+    },
+    {
+      name: '🧾 Document Vault',
+      path: '/documents',
+      description: 'Upload, preview, and download all of your financial documents in one secure place.',
+    },
+    {
+      name: '💡 Budgeting Tool',
+      path: '/budget',
+      description: 'Track income/expenses by category and time. Includes intelligent recommendations based on saving goals.',
+    },
+    {
+      name: '🆕 Updates & Help Center',
+      path: '/updates',
+      description: 'See what’s coming next to Turbinix and reach out with feedback or questions.',
+    },
+  ];
 
   return (
-    <div className="p-6 max-w-3xl mx-auto text-gray-900 dark:text-white">
-      <h1 className="text-3xl font-bold mb-4">Finance Dashboard</h1>
-
-      <div className="bg-gray-100 dark:bg-gray-800 border rounded-xl p-4 mb-8 shadow">
-        <p><strong>Total Properties:</strong> {totalProperties}</p>
-        <p><strong>Total Balance:</strong> ${totalBalance.toLocaleString()}</p>
-        <p><strong>Avg. Balance:</strong> ${avgBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
-      </div>
-
-      <div className="bg-white dark:bg-gray-800 border rounded-xl p-4 mb-8 shadow">
-        <h2 className="text-xl font-semibold mb-2">Balance by Property</h2>
-        <ResponsiveContainer width="100%" height={250}>
-          <BarChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
-            <XAxis dataKey="name" stroke="#8884d8" />
-            <YAxis stroke="#8884d8" />
-            <Tooltip />
-            <Bar dataKey="balance" fill="#3b82f6" />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-
-      <form onSubmit={handleSubmit} className="space-y-4 mb-8">
-        <input
-          type="text"
-          name="property"
-          value={form.property}
-          onChange={handleChange}
-          placeholder="Property Address"
-          className="w-full p-2 border rounded bg-white dark:bg-gray-900"
-        />
-        <input
-          type="text"
-          name="bank"
-          value={form.bank}
-          onChange={handleChange}
-          placeholder="Bank Name"
-          className="w-full p-2 border rounded bg-white dark:bg-gray-900"
-        />
-        <input
-          type="number"
-          name="balance"
-          value={form.balance}
-          onChange={handleChange}
-          placeholder="Account Balance"
-          className="w-full p-2 border rounded bg-white dark:bg-gray-900"
-        />
+    <div className="min-h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-white px-6 py-10">
+      <div className="flex justify-between items-center mb-10">
+        <h1 className="text-3xl font-bold">Welcome to Turbinix Hub</h1>
         <button
-          type="submit"
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition transform hover:scale-105"
+          onClick={handleLogout}
+          className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded"
         >
-          {editingIndex !== null ? 'Update Entry' : 'Add Entry'}
+          🚪 Logout
         </button>
-      </form>
+      </div>
 
-      <div className="space-y-4">
-        {entries.map((entry, idx) => (
-          <div
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        {projects.map((project, idx) => (
+          <Link
+            to={project.path}
             key={idx}
-            className="border rounded p-4 shadow bg-white dark:bg-gray-800 relative transition-all duration-200 hover:shadow-md hover:-translate-y-1"
+            className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-6 shadow-md hover:shadow-lg transition-all duration-200 hover:-translate-y-1"
           >
-            <div className="absolute top-2 right-2 flex gap-2">
-              <button
-                onClick={() => handleEdit(idx)}
-                className="text-yellow-600 hover:text-yellow-800 text-sm"
-              >
-                ✏️ Edit
-              </button>
-              <button
-                onClick={() => handleDelete(idx)}
-                className="text-red-500 hover:text-red-700 text-sm"
-              >
-                🗑️ Delete
-              </button>
-            </div>
-            <p><strong>🏠 Property:</strong> {entry.property}</p>
-            <p><strong>🏦 Bank:</strong> {entry.bank}</p>
-            <p><strong>💰 Balance:</strong> ${Number(entry.balance).toLocaleString()}</p>
-          </div>
+            <h2 className="text-lg font-semibold mb-1">{project.name}</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-300">{project.description}</p>
+          </Link>
         ))}
       </div>
     </div>
   );
 }
 
-export default FinanceDashboard;
+export default ProjectHub;
