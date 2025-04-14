@@ -14,7 +14,7 @@ function Register() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const API = process.env.REACT_APP_API_URL || 'https://turbinix-backend.onrender.com';
+  const API = import.meta.env.VITE_API_URL || 'https://turbinix-backend.onrender.com';
 
   useEffect(() => {
 
