@@ -16,6 +16,9 @@ import ThemeToggle from './ThemeToggle';
 import ProtectedRoute from './ProtectedRoute';
 import NavigationBar from './NavigationBar';
 import FloatingPaths from './FloatingPaths';
+import ForgotPassword from './ForgotPassword';
+import ResetPassword from './ResetPassword';
+
 
 function AppContent({ isAuthenticated, handleLogin, handleLogout, darkMode, toggleDarkMode }) {
   const location = useLocation();
@@ -54,6 +57,8 @@ function AppContent({ isAuthenticated, handleLogin, handleLogout, darkMode, togg
         <Route path="/documents" element={<ProtectedRoute isAuthenticated={isAuthenticated}><Documents /></ProtectedRoute>} />
         <Route path="/updates" element={<ProtectedRoute isAuthenticated={isAuthenticated}><UpdatesHelp /></ProtectedRoute>} />
         <Route path="/lookup" element={<ProtectedRoute isAuthenticated={isAuthenticated}><RealEstateLookup /></ProtectedRoute>} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </div>
