@@ -1,25 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 
-function ThemeToggle() {
-  const [darkMode, setDarkMode] = useState(() => {
-    return localStorage.getItem('theme') === 'dark';
-  });
-
-  useEffect(() => {
-    const root = window.document.documentElement;
-    if (darkMode) {
-      root.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      root.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-    }
-  }, [darkMode]);
-
+function ThemeToggle({ darkMode, toggleDarkMode }) {
   return (
     <button
-      onClick={() => setDarkMode(prev => !prev)}
-      className="fixed bottom-4 right-4 text-2xl z-50"
+      onClick={toggleDarkMode}
+      className="fixed bottom-4 right-4 w-12 h-12 rounded-full bg-white dark:bg-gray-800 shadow-lg flex items-center justify-center text-xl z-40 border border-gray-200 dark:border-gray-700 transition-all duration-300 hover:scale-110"
+      aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
     >
       {darkMode ? '🌙' : '☀️'}
     </button>
