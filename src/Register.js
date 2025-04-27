@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import ThemeToggle from './ThemeToggle'; // Rendered globally
+import ThemeToggle from './ThemeToggle';
 
 const FormInput = ({ id, name, type, placeholder, value, onChange, required = true }) => (
   <div>
@@ -41,7 +41,7 @@ const ActionButton = ({ type = "submit", onClick, loading, loadingText, children
 
 function Register({ isAuthenticated }) {
   const navigate = useNavigate();
-  const [form, setForm] = useState({});
+  const [form, setForm] = useState({ email: '', username: '', firstName: '', lastName: '', password: '', code: '' });
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [cooldown, setCooldown] = useState(0);
@@ -64,11 +64,75 @@ function Register({ isAuthenticated }) {
     };
   }, [isAuthenticated, navigate, dashboardRoute]);
 
-  useEffect(() => {}, [cooldown]);
+  useEffect(() => {
+    if (cooldown > 0) {
+      const timer = setTimeout(() => setCooldown(cooldown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [cooldown]);
 
-  const handleChange = (e) => { /* handlers unchanged */ };
-  const sendCode = async () => { /* handlers unchanged */ };
-  const verifyAndRegister = async () => { /* handlers unchanged */ };
+  const handleChange = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+    setError('');
+    setSuccess('');
+  };
+
+  const sendCode = async () => {
+    if (!form.email) return setError('Please enter an email address.');
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/send-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: form.email }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setStep(2);
+        setSuccess('Verification code sent to your email.');
+        setCooldown(60);
+      } else {
+        setError(data.message || data.error || 'Error sending code.');
+      }
+    } catch (err) {
+      console.error(err);
+      setError('Something went wrong.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const verifyAndRegister = async () => {
+    if (!form.code) return setError('Please enter the verification code.');
+    setLoading(true);
+    try {
+      const payload = {
+        username: form.username,
+        email: form.email,
+        password: form.password,
+        first_name: form.firstName,
+        last_name: form.lastName,
+        code: form.code,
+      };
+      const response = await fetch(`${API_URL}/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setSuccess('Account created successfully!');
+        setTimeout(() => navigate('/login'), 1500);
+      } else {
+        setError(data.message || data.error || 'Registration failed.');
+      }
+    } catch (err) {
+      console.error(err);
+      setError('Something went wrong.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="relative flex items-center justify-center min-h-screen bg-white/50 dark:bg-gray-950/50 backdrop-blur-sm px-4 py-12 overflow-hidden transition-colors duration-300">
@@ -93,10 +157,10 @@ function Register({ isAuthenticated }) {
           </div>
         )}
 
-        {/* Step forms unchanged */}
         {step === 1 && (
           <form onSubmit={(e) => { e.preventDefault(); sendCode(); }} className="space-y-4">
             <FormInput id="email" name="email" type="email" placeholder="Email Address" value={form.email} onChange={handleChange} />
+            <FormInput id="username" name="username" type="text" placeholder="Username" value={form.username} onChange={handleChange} />
             <div className="flex flex-col sm:flex-row gap-4">
               <FormInput id="firstName" name="firstName" type="text" placeholder="First Name" value={form.firstName} onChange={handleChange} />
               <FormInput id="lastName" name="lastName" type="text" placeholder="Last Name" value={form.lastName} onChange={handleChange} />
@@ -130,7 +194,7 @@ function Register({ isAuthenticated }) {
                 Edit Email/Info
               </button>
             </div>
-            <ActionButton loading={loading} loadingText="Creating Account..." className="bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white">
+            <ActionButton loading={loading} loadingText="Creating Account...">
               Verify & Create Account
             </ActionButton>
           </form>
@@ -145,8 +209,6 @@ function Register({ isAuthenticated }) {
           >
             Already have an account? Log In
           </button>
-
-          {/* Back to Home with subtle hover pulse */}
           <div>
             <button
               onClick={() => navigate('/')}
