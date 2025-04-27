@@ -60,3 +60,12 @@ body {
   color: white;
   border: none;
 }
+/* Additional Glow Text (optional) */
+@layer utilities {
+  .glow-text-alt {
+    text-shadow: 0 0 8px rgba(255,255,255,0.5);
+  }
+  .dark .glow-text-alt {
+    text-shadow: 0 0 8px rgba(220,220,255,0.6);
+  }
+}
