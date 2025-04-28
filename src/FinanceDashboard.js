@@ -1,5 +1,6 @@
 // src/FinanceDashboard.js
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom'; // Import useNavigate
 import {
   ResponsiveContainer,
   LineChart,
@@ -8,38 +9,35 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  BarChart,
-  Bar,
   AreaChart,
   Area,
 } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
-import EntryFormModal from './EntryFormModal'; // Import the new modal
+import EntryFormModal from './EntryFormModal';
 
 // --- Constants & Helpers ---
 const USER_DATA_KEY = 'userData';
-const ACCOUNT_MODAL_KEY = 'showAccountModal'; // Example key for another modal
-
-// Dummy data for charts (replace with real data later)
-const netWorthData = [ /* ... keep as is ... */ ];
-const spendingData = [ /* ... keep as is ... */ ];
-const investmentData = [ /* ... keep as is ... */ ];
 
 const CustomTooltip = ({ active, payload, label, currency = '$' }) => {
+  // The label already comes pre-formatted from the tickFormatter
   if (active && payload && payload.length) {
     return (
-      <div className="px-3 py-1 bg-gray-800 dark:bg-zinc-900 text-white text-xs rounded-md shadow-lg border border-white/10 backdrop-blur-sm">
-        <p className="font-semibold">{label}</p>
-        <p>{`${currency}${payload[0].value.toLocaleString()}`}</p>
+      <div className="px-3 py-1.5 bg-gray-800 dark:bg-zinc-950/80 text-white text-xs rounded-lg shadow-lg border border-white/10 backdrop-blur-sm">
+        {/* Display the formatted label directly */}
+        <p className="font-semibold mb-0.5">{label}</p>
+        <p className="text-base font-medium">{`${currency}${payload[0].value.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}</p>
+        {/* Optionally add the full date if needed from payload */}
+        {/* <p className="text-xs opacity-70">{payload[0].payload.date}</p> */}
       </div>
     );
   }
   return null;
 };
 
+
 // Default structure for sections if they don't exist in localStorage
 const defaultSpending = { spentThisMonth: 0, latestTransactions: [] };
-const defaultInvestments = { totalValue: 0, changePercent: 0 };
+const defaultInvestments = { totalValue: 0, changePercent: 0, history: [] };
 const defaultFrequentExpenses = [];
 const defaultUserData = {
     assets: {
@@ -56,7 +54,7 @@ const defaultUserData = {
     frequentExpenses: defaultFrequentExpenses,
 };
 
-// Function to format date/time nicely
+// Function to format date/time nicely for display (e.g., "Updated x ago")
 const formatTimestamp = (isoString) => {
   if (!isoString) return 'Updated recently';
   const date = new Date(isoString);
@@ -67,85 +65,233 @@ const formatTimestamp = (isoString) => {
   const diffDays = Math.round(diffHours / 24);
 
   if (diffSeconds < 60) return 'Just now';
-  if (diffMinutes < 60) return `${diffMinutes} minute${diffMinutes > 1 ? 's' : ''} ago`;
-  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+  if (diffMinutes < 60) return `${diffMinutes} min${diffMinutes !== 1 ? 's' : ''} ago`;
+  if (diffHours < 24) return `${diffHours} hr${diffHours !== 1 ? 's' : ''} ago`;
   if (diffDays === 1) return 'Yesterday';
   if (diffDays < 7) return `${diffDays} days ago`;
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 };
 
+// Helper to format date for XAxis based on the selected time range
+const formatDateForAxis = (dateString, range) => {
+    const date = new Date(dateString + 'T00:00:00'); // Ensure local timezone interpretation
+    if (isNaN(date.getTime())) return ''; // Handle invalid dates
 
+    if (range === 'ALL') {
+        // Format as MM/YY
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = String(date.getFullYear()).slice(-2);
+        return `${month}/${year}`;
+    } else {
+        // Format as M/D for 1W, 1M, 3M, YTD
+        return `${date.getMonth() + 1}/${date.getDate()}`;
+    }
+};
+
+// --- Main Component ---
 function FinanceDashboard() {
-  const [selectedTab, setSelectedTab] = useState('assets'); // 'assets' or 'liabilities'
+  const navigate = useNavigate(); // Hook for navigation
+  const [selectedTab, setSelectedTab] = useState('assets');
   const [netWorthTimeRange, setNetWorthTimeRange] = useState('ALL');
   const [userData, setUserData] = useState(() => {
     const stored = localStorage.getItem(USER_DATA_KEY);
     if (stored) {
       try {
         const parsed = JSON.parse(stored);
-        // Deep merge stored data with defaults to ensure all keys exist
         const mergeWithDefaults = (target, source) => {
+           // Ensure target is an object before merging
+           if (typeof target !== 'object' || target === null) {
+             target = {};
+           }
+
           for (const key of Object.keys(source)) {
-            if (source[key] instanceof Object && !(source[key] instanceof Array) && key in target) {
+             if (source[key] instanceof Object && !(source[key] instanceof Array) && !(source[key] === null) && key in target && typeof target[key] === 'object') {
               target[key] = mergeWithDefaults(target[key] || {}, source[key]);
-            } else if (!(key in target)) { // Only add if key doesn't exist
-                target[key] = source[key];
+             } else if (!(key in target) || target[key] === undefined || target[key] === null) {
+              target[key] = source[key];
             }
           }
-          // Ensure existing array keys are kept even if default is different
-          for(const key of Object.keys(target)){
-              if (source[key] instanceof Array && !(target[key] instanceof Array)) {
-                  target[key] = source[key];
-              }
+          for (const key of Object.keys(target)) {
+            if (source[key] instanceof Array && !(target[key] instanceof Array)) {
+              target[key] = source[key];
+            }
+             // Ensure nested objects/arrays are also initialized if missing in stored data
+            if (typeof source[key] === 'object' && source[key] !== null && typeof target[key] === 'undefined') {
+                 target[key] = JSON.parse(JSON.stringify(source[key])); // Deep copy default structure
+            }
           }
           return target;
         };
-        return mergeWithDefaults(parsed, defaultUserData);
+        const deepDefault = JSON.parse(JSON.stringify(defaultUserData));
+        return mergeWithDefaults(parsed, deepDefault);
       } catch (e) {
         console.error("Failed to parse user data from localStorage", e);
-        return defaultUserData; // Fallback to default if parsing fails
+        return JSON.parse(JSON.stringify(defaultUserData));
       }
     }
-    return defaultUserData; // Return default if nothing in localStorage
+    return JSON.parse(JSON.stringify(defaultUserData));
   });
 
   const [username, setUsername] = useState('');
 
   // --- Modal States ---
-  const [showAccountModal, setShowAccountModal] = useState(false); // For the bank connection modal
+  const [showAccountModal, setShowAccountModal] = useState(false);
   const [isEntryModalOpen, setIsEntryModalOpen] = useState(false);
-  const [entryModalMode, setEntryModalMode] = useState('add'); // 'add' or 'edit'
-  const [currentEntryCategory, setCurrentEntryCategory] = useState({ type: '', name: '' }); // {type: 'assets', name: 'Savings'}
-  const [currentItemToEdit, setCurrentItemToEdit] = useState(null); // Holds the item object for editing
+  const [entryModalMode, setEntryModalMode] = useState('add');
+  const [currentEntryCategory, setCurrentEntryCategory] = useState({ type: '', name: '' });
+  const [currentItemToEdit, setCurrentItemToEdit] = useState(null);
 
   // --- Persist Data to localStorage ---
   useEffect(() => {
-    localStorage.setItem(USER_DATA_KEY, JSON.stringify(userData));
+    const dataToSave = { ...defaultUserData, ...userData };
+    localStorage.setItem(USER_DATA_KEY, JSON.stringify(dataToSave));
   }, [userData]);
 
   // --- Fetch Username ---
   useEffect(() => {
-    const storedUsername = localStorage.getItem('username');
-    setUsername(storedUsername || 'there');
+     const storedFullName = localStorage.getItem('fullName');
+    const storedUsername = localStorage.getItem('user');
+     setUsername(storedFullName?.split(' ')[0] || storedUsername || 'there');
   }, []);
 
-  // --- Calculations (Recalculated whenever userData changes) ---
+  // --- Calculations ---
   const { assets, liabilities, spending, investments, frequentExpenses } = userData;
 
-  const calculateTotal = (items) => (items || []).reduce((sum, i) => sum + (i.value || 0), 0);
+  const calculateTotal = (items) => (items || []).reduce((sum, i) => sum + (Number(i.value) || 0), 0);
 
   const allAssets = Object.values(assets || {}).flat();
   const allLiabilities = Object.values(liabilities || {}).flat();
 
   const totalAssets = calculateTotal(allAssets);
   const totalLiabilities = calculateTotal(allLiabilities);
-  const netWorth = totalAssets - totalLiabilities;
+  const currentNetWorth = totalAssets - totalLiabilities;
 
   // --- Color Mapping ---
   const colorMap = {
     'Real Estate': '#22c55e', Savings: '#84cc16', Checking: '#eab308',
     Securities: '#38bdf8', Loans: '#ef4444', Default: '#a1a1aa',
   };
+
+  // --- Generate Net Worth Data (Synthetic) ---
+  const netWorthChartData = useMemo(() => {
+    const now = new Date();
+    const data = [];
+    let daysToShow;
+    let startDate = new Date();
+
+    switch (netWorthTimeRange) {
+      case '1W': daysToShow = 7; startDate.setDate(now.getDate() - 6); break;
+      case '1M': daysToShow = 30; startDate.setMonth(now.getMonth() - 1); break;
+      case '3M': daysToShow = 90; startDate.setMonth(now.getMonth() - 3); break;
+      case 'YTD': startDate = new Date(now.getFullYear(), 0, 1); daysToShow = Math.ceil((now - startDate) / (1000 * 60 * 60 * 24)) + 1; break; // +1 to include today
+      case 'ALL':
+      default: daysToShow = 365; startDate.setFullYear(now.getFullYear() - 1); break;
+    }
+
+    if (daysToShow <= 0) daysToShow = 1;
+
+     // Start simulation from a value slightly different from current, based on a plausible past trend
+     const startingMultiplier = 0.8 + Math.random() * 0.15; // Start between 80% and 95% of current
+     let value = currentNetWorth * startingMultiplier;
+     // Fluctuation factor relative to the magnitude of net worth
+    const fluctuationFactor = (0.001 + Math.random() * 0.005) * (Math.abs(currentNetWorth) || 1000); // Base fluctuation on magnitude
+
+    for (let i = 0; i < daysToShow; i++) {
+      const date = new Date(startDate);
+      date.setDate(startDate.getDate() + i);
+
+      if (i === daysToShow - 1 && date <= now) {
+        value = currentNetWorth; // Ensure the last point is the current net worth if today is included
+      } else if (date < now) {
+         // Simulate daily change
+        const changeDirection = Math.random() < 0.51 ? 1 : -1; // Slightly more likely to increase
+        const changeAmount = changeDirection * fluctuationFactor * (0.5 + Math.random()); // Random fluctuation
+        value += changeAmount;
+        // Ensure value stays reasonable (e.g., doesn't cross zero unexpectedly)
+        if (currentNetWorth >= 0 && value < 0) value = 0;
+        if (currentNetWorth < 0 && value > 0) value = 0;
+      } else if (date > now) {
+           continue; // Don't generate data for future dates
+      }
+
+
+      data.push({
+         date: date.toISOString().split('T')[0], // Store as YYYY-MM-DD
+         // We pass the raw date string here; formatting happens in tickFormatter
+         name: date.toISOString().split('T')[0],
+         value: parseFloat(value.toFixed(2))
+       });
+    }
+
+     // Ensure the very last point accurately reflects today's net worth if it exists
+    const todayStr = now.toISOString().split('T')[0];
+    const lastPoint = data[data.length - 1];
+     if (lastPoint && lastPoint.date === todayStr) {
+         lastPoint.value = parseFloat(currentNetWorth.toFixed(2));
+     } else if (!data.find(p => p.date === todayStr)) {
+         // If today is not in the generated data (e.g., exactly 1W ago ends yesterday), add it
+         data.push({
+            date: todayStr,
+             name: todayStr, // Pass raw date string
+             value: parseFloat(currentNetWorth.toFixed(2)),
+         });
+     }
+
+    // Ensure minimum data points for the chart
+    if(data.length < 2){
+        const yesterday = new Date(now);
+        yesterday.setDate(now.getDate() -1);
+        const yesterdayStr = yesterday.toISOString().split('T')[0];
+         data.unshift({
+             date: yesterdayStr,
+             name: yesterdayStr,
+             value: parseFloat((currentNetWorth * (1 + (Math.random() - 0.5) * 0.02)).toFixed(2)),
+         });
+    }
+
+
+    return data;
+  }, [netWorthTimeRange, currentNetWorth]);
+
+
+  // --- Generate Spending Mini-Graph Data ---
+  const spendingChartData = useMemo(() => {
+     const transactions = spending?.latestTransactions || [];
+     if (transactions.length === 0) {
+        // Fallback data for a nice curve
+         return [ { name: 'Start', value: 50 }, { name: '', value: 80 }, { name: '', value: 60 }, { name: '', value: 90 }, { name: 'Now', value: 70 }, ];
+    }
+     // Simple approach: show last N transaction amounts (absolute value for expenses)
+     const recentSpending = transactions
+         .slice(0, 7) // Limit to last 7 transactions
+         .map(tx => ({
+             // Use a simple index or relative label if dates are too close
+             name: formatDateForAxis(tx.date, '1W'), // Use short date format
+             value: Math.abs(tx.amount || 0)
+         }))
+         .reverse(); // Show oldest first
+
+     // Ensure at least 2 points
+     if(recentSpending.length < 2) {
+         recentSpending.unshift({ name: 'Earlier', value: recentSpending[0]?.value * 0.8 || 10 });
+         if(recentSpending.length < 2) recentSpending.push({ name: 'Now', value: recentSpending[0]?.value * 1.1 || 15 });
+     }
+     return recentSpending;
+  }, [spending?.latestTransactions]);
+
+
+  // --- Generate Investment Mini-Graph Data ---
+  const investmentChartData = useMemo(() => {
+    const totalValue = investments?.totalValue || 0;
+    if (totalValue <= 0) {
+      return [ { name: 'Start', value: 0 }, { name: 'Now', value: 0 }, ];
+    } else {
+       // Simple upward trend fallback
+       // Consider using investment history if available later
+      return [ { name: 'Start', value: totalValue * 0.95 }, { name: '', value: totalValue * 0.98 }, { name: 'Now', value: totalValue } ];
+    }
+  }, [investments?.totalValue, investments?.history]);
+
 
   // --- CRUD Handlers ---
   const handleAddEntry = useCallback((categoryType, categoryName, newEntry) => {
@@ -163,7 +309,6 @@ function FinanceDashboard() {
 
   const handleUpdateEntry = useCallback((categoryType, categoryName, updatedEntry) => {
       setUserData(prevData => {
-          // Ensure timestamp is updated for the edit
           updatedEntry.lastUpdated = new Date().toISOString();
           const updatedCategoryItems = (prevData[categoryType]?.[categoryName] || []).map(item =>
               item.id === updatedEntry.id ? updatedEntry : item
@@ -177,7 +322,6 @@ function FinanceDashboard() {
           };
       });
   }, []);
-
 
   const handleDeleteEntry = useCallback((categoryType, categoryName, entryId) => {
     setUserData(prevData => {
@@ -202,7 +346,7 @@ function FinanceDashboard() {
 
   const closeEntryModal = useCallback(() => {
     setIsEntryModalOpen(false);
-    setCurrentItemToEdit(null); // Clear item being edited
+    setCurrentItemToEdit(null);
   }, []);
 
   const handleEntryFormSubmit = useCallback((categoryType, categoryName, entryData) => {
@@ -215,8 +359,7 @@ function FinanceDashboard() {
 
 
   // --- Child Components ---
-
-  const CollapsibleSection = ({ title, color, items, categoryType /* 'assets' or 'liabilities' */ }) => {
+  const CollapsibleSection = ({ title, color, items, categoryType }) => {
     const [isOpen, setIsOpen] = useState(true);
     const total = calculateTotal(items);
     const hasItems = items && items.length > 0;
@@ -235,7 +378,7 @@ function FinanceDashboard() {
             <h3 className="font-medium text-sm text-zinc-800 dark:text-zinc-200">{title}</h3>
           </div>
           <div className="flex items-center gap-2">
-             {hasItems && <div className="text-sm font-semibold text-zinc-900 dark:text-white">${total.toLocaleString()}</div> }
+             {hasItems && <div className="text-sm font-semibold text-zinc-900 dark:text-white">${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div> }
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={`w-4 h-4 text-zinc-500 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}>
               <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
             </svg>
@@ -263,11 +406,11 @@ function FinanceDashboard() {
                 {(items || []).map((item) => (
                   <button
                     key={item.id}
-                    onClick={() => openEntryModal('edit', categoryType, title, item)} // Open edit modal on click
+                    onClick={() => openEntryModal('edit', categoryType, title, item)}
                     className="text-left rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-950 p-4 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-sky-500 focus:border-transparent transition-all duration-150"
                   >
                     <p className="text-sm font-medium truncate text-zinc-800 dark:text-zinc-200">{item.name}</p>
-                    <p className="text-xl font-bold mt-1 text-zinc-900 dark:text-white">${(item.value || 0).toLocaleString()}</p>
+                    <p className="text-xl font-bold mt-1 text-zinc-900 dark:text-white">${(item.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                     <p className="text-xs text-green-500 dark:text-green-400 mt-1 flex items-center gap-1">
                       <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
                       {formatTimestamp(item.lastUpdated)}
@@ -277,7 +420,7 @@ function FinanceDashboard() {
 
                 {/* Add New Item Button */}
                 <button
-                  onClick={() => openEntryModal('add', categoryType, title)} // Open add modal
+                  onClick={() => openEntryModal('add', categoryType, title)}
                   className="rounded-xl border-2 border-dashed border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50 p-4 flex flex-col items-center justify-center text-zinc-500 hover:border-blue-400 dark:hover:border-sky-600 hover:text-blue-600 dark:hover:text-sky-400 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-sky-500 focus:border-transparent"
                   aria-label={`Add new item to ${title}`}
                   >
@@ -309,11 +452,25 @@ function FinanceDashboard() {
     );
   };
 
-
   const AddAccountModal = () => {
-    return null;
+    if (!showAccountModal) return null;
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-zinc-800 p-6 rounded-xl shadow-lg max-w-md w-full">
+              <h2 className="text-lg font-semibold mb-4">Link External Account</h2>
+              <p className="text-sm text-zinc-600 dark:text-zinc-300 mb-4">
+                  Account linking (e.g., via Plaid) is coming soon. For now, please add accounts manually using the '+' buttons in each section.
+              </p>
+              <button
+                  onClick={() => setShowAccountModal(false)}
+                  className="w-full py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+              >
+                  Got it
+              </button>
+          </div>
+      </div>
+    );
   };
-  // This is a placeholder for the account linking modal  
 
   // --- Main Render ---
   return (
@@ -325,13 +482,13 @@ function FinanceDashboard() {
             Hello, {username.charAt(0).toUpperCase() + username.slice(1)}
           </h1>
           <button
-            onClick={() => setShowAccountModal(true)} // This still opens the bank connection modal
+            onClick={() => setShowAccountModal(true)}
             className="flex items-center gap-1 rounded-full border border-zinc-300 dark:border-zinc-700 px-4 py-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors shadow-sm"
           >
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
             </svg>
-            Account {/* This button is for linking external accounts, not manual entries */}
+            Account {/* Button kept for future Plaid integration */}
           </button>
         </div>
 
@@ -341,20 +498,38 @@ function FinanceDashboard() {
           <div className="lg:col-span-2 bg-white dark:bg-zinc-900 rounded-2xl p-5 sm:p-6 shadow border border-zinc-200 dark:border-zinc-800">
             {/* Net Worth Section */}
             <h2 className="text-sm font-medium uppercase text-zinc-500 dark:text-zinc-400 tracking-wider mb-1">Net Worth</h2>
-            <p className="text-3xl sm:text-4xl font-bold mb-1 text-zinc-900 dark:text-white">${netWorth.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
-            {/* TODO: Calculate and display actual change */}
+             <p className="text-3xl sm:text-4xl font-bold mb-1 text-zinc-900 dark:text-white">${currentNetWorth.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
             <div className="text-sm text-green-600 dark:text-green-500 mb-4">Dynamic change TBD</div>
             <div className="h-56 sm:h-64 w-full mb-4">
-               {/* Net worth chart display */}
               <ResponsiveContainer width="100%" height="100%">
-                  {/* Add actual net worth data binding here later */}
-                 <LineChart data={netWorthData} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} vertical={false} />
-                    <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} dy={10} />
-                    <YAxis fontSize={10} tickLine={false} axisLine={false} dx={-5} />
-                    <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'hsl(var(--foreground))', strokeWidth: 1, strokeDasharray: '3 3' }} />
-                    <Line type="monotone" dataKey="value" stroke="#16a34a" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: '#16a34a', stroke: 'var(--background)', strokeWidth: 2 }} />
-                  </LineChart>
+                  {netWorthChartData.length > 0 ? (
+                    <LineChart data={netWorthChartData} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
+                        <defs>
+                            <linearGradient id="netWorthGradient" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#16a34a" stopOpacity={0.3}/>
+                                <stop offset="95%" stopColor="#16a34a" stopOpacity={0}/>
+                            </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="currentColor" strokeOpacity={0.1} vertical={false} />
+                         {/* Use tickFormatter for dynamic date formatting */}
+                         <XAxis
+                            dataKey="name"
+                            fontSize={10}
+                            tick={{ fill: 'currentColor', opacity: 0.6 }}
+                            tickLine={false}
+                            axisLine={false}
+                            dy={10}
+                            tickFormatter={(tick) => formatDateForAxis(tick, netWorthTimeRange)} // Pass range to formatter
+                            interval="preserveStartEnd" // Adjust interval as needed, e.g., 'auto' or number
+                          />
+                        <YAxis fontSize={10} tick={{ fill: 'currentColor', opacity: 0.6 }} tickLine={false} axisLine={false} dx={-5} tickFormatter={(val) => `$${val.toLocaleString()}`} domain={['auto', 'auto']}/>
+                         <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'hsl(var(--foreground))', strokeWidth: 1, strokeDasharray: '3 3' }} labelFormatter={(label) => formatDateForAxis(label, netWorthTimeRange)} />
+                        <Line type="monotone" dataKey="value" stroke="#16a34a" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: '#16a34a', stroke: 'var(--background)', strokeWidth: 2 }} />
+                         <Area type="monotone" dataKey="value" stroke={false} fill="url(#netWorthGradient)" />
+                    </LineChart>
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-zinc-500 italic">Add assets/liabilities to see net worth history.</div>
+                  )}
               </ResponsiveContainer>
             </div>
             <div className="flex items-center justify-center space-x-1 bg-zinc-100 dark:bg-zinc-800 rounded-full p-1 w-fit mx-auto mb-6">
@@ -375,18 +550,18 @@ function FinanceDashboard() {
               </button>
             </div>
 
-            {/* Collapsible Sections - Pass categoryType */}
+            {/* Collapsible Sections */}
             <div className="mt-4 space-y-4">
               {Object.entries(userData[selectedTab] || {}).map(([categoryName, items]) => (
                 <CollapsibleSection
-                  key={`${selectedTab}-${categoryName}`} // Ensure unique key across tabs
+                  key={`${selectedTab}-${categoryName}`}
                   title={categoryName}
                   color={colorMap[categoryName] || colorMap.Default}
                   items={items}
-                  categoryType={selectedTab} // Pass 'assets' or 'liabilities'
+                  categoryType={selectedTab}
                 />
               ))}
-              {/* Add Category Section Button - Functionality TBD */}
+              {/* Add Category Section Button - Placeholder */}
               <button className="w-full mt-4 py-3 px-4 border-2 border-dashed border-zinc-300 dark:border-zinc-700 rounded-xl text-zinc-500 hover:border-zinc-400 dark:hover:border-zinc-600 hover:text-zinc-600 dark:hover:text-zinc-400 transition-colors duration-150 flex items-center justify-center gap-2 text-sm font-medium opacity-50 cursor-not-allowed" disabled>
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
                 Add Category Section (Soon)
@@ -394,52 +569,119 @@ function FinanceDashboard() {
             </div>
           </div>
 
-          {/* Right Column: Info Cards (Keep as is, data is placeholder) */}
+          {/* Right Column: Info Cards */}
           <div className="space-y-6">
-             {/* Spending Card */}
-              <div className="bg-white dark:bg-zinc-900 rounded-2xl p-5 sm:p-6 shadow border border-zinc-200 dark:border-zinc-800">
-                <div className="flex items-center justify-between mb-3"> <h2 className="text-sm font-medium uppercase text-zinc-500 dark:text-zinc-400 tracking-wider">Spending</h2> <button className="text-xl text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors">›</button> </div>
+             {/* Spending Card - Make clickable */}
+             <div
+               className="bg-white dark:bg-zinc-900 rounded-2xl p-5 sm:p-6 shadow border border-zinc-200 dark:border-zinc-800 cursor-pointer hover:shadow-lg transition-shadow duration-150"
+               onClick={() => navigate('/budget')}
+               role="button"
+               tabIndex={0}
+               onKeyDown={(e) => e.key === 'Enter' && navigate('/budget')} // Accessibility
+             >
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-sm font-medium uppercase text-zinc-500 dark:text-zinc-400 tracking-wider">Spending</h2>
+                  {/* Arrow removed */}
+                </div>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-0.5">Spent this month</p>
-                <p className="text-2xl font-bold mb-4 text-zinc-900 dark:text-white">${(spending?.spentThisMonth || 0).toLocaleString()}</p>
-                <div className="h-20 w-full mb-5"> <ResponsiveContainer width="100%" height="100%"> <BarChart data={spendingData} margin={{ top: 5, right: 0, left: 0, bottom: -10 }}> <XAxis dataKey="name" fontSize={9} tickLine={false} axisLine={false} dy={10} /> <Tooltip content={<CustomTooltip />} cursor={{ fill: 'hsl(var(--muted))' }} /> <Bar dataKey="spent" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={15} /> </BarChart> </ResponsiveContainer> </div>
+                 <p className="text-2xl font-bold mb-4 text-zinc-900 dark:text-white">${(spending?.spentThisMonth || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                 <div className="h-20 w-full mb-5">
+                   <ResponsiveContainer width="100%" height="100%">
+                     <AreaChart data={spendingChartData} margin={{ top: 5, right: 0, left: 0, bottom: -10 }}>
+                         <defs><linearGradient id="spendingGradient" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/><stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/></linearGradient></defs>
+                        <Tooltip content={<CustomTooltip currency='Spent: $'/>} cursor={{ stroke: 'hsl(var(--foreground))', strokeWidth: 1, strokeDasharray: '3 3' }} />
+                        <Area type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={1.5} fill="url(#spendingGradient)" dot={false} />
+                       </AreaChart>
+                   </ResponsiveContainer>
+                 </div>
                 <p className="text-sm font-semibold mb-2 text-zinc-800 dark:text-zinc-200">Latest transactions</p>
                 <div className="space-y-2 text-sm">
-                  {(spending?.latestTransactions || []).slice(0, 3).map((tx) => ( <div key={tx.id} className="flex justify-between items-center"> <span className="text-zinc-700 dark:text-zinc-300 truncate pr-2">{tx.name}</span> <span className={`font-medium ${tx.isPositive ? 'text-green-600 dark:text-green-500' : 'text-zinc-600 dark:text-zinc-400'}`}> {tx.isPositive ? '+' : ''}${Math.abs(tx.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} </span> </div> ))}
-                  {(spending?.latestTransactions?.length === 0) && ( <p className="text-xs text-zinc-500 dark:text-zinc-400 italic">No transactions this month yet.</p> )}
+                   {(spending?.latestTransactions || []).length > 0 ? (
+                       (spending?.latestTransactions || []).slice(0, 3).map((tx) => (
+                         <div key={tx.id || tx.name} className="flex justify-between items-center">
+                           <span className="text-zinc-700 dark:text-zinc-300 truncate pr-2">{tx.title || tx.name}</span>
+                           <span className={`font-medium ${tx.amount >= 0 ? 'text-green-600 dark:text-green-500' : 'text-zinc-600 dark:text-zinc-400'}`}>
+                             {tx.amount < 0 ? '-' : '+'}${Math.abs(tx.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                           </span>
+                         </div>
+                       ))
+                    ) : (
+                       <p className="text-xs text-zinc-500 dark:text-zinc-400 italic">No transactions this month yet.</p>
+                    )}
                 </div>
-                {(spending?.latestTransactions?.length > 3) && ( <button className="w-full mt-4 py-2 border border-zinc-300 dark:border-zinc-700 rounded-full text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"> See all transactions </button> )}
+                 {(spending?.latestTransactions?.length > 3) && (
+                   <button
+                     onClick={(e) => { e.stopPropagation(); navigate('/budget'); }} // Prevent card click too, navigate directly
+                     className="w-full mt-4 py-2 border border-zinc-300 dark:border-zinc-700 rounded-full text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors">
+                     See all transactions
+                   </button>
+                 )}
               </div>
-             {/* Investments Portfolio */}
-              <div className="bg-white dark:bg-zinc-900 rounded-2xl p-5 sm:p-6 shadow border border-zinc-200 dark:border-zinc-800">
-                <div className="flex items-center justify-between mb-2"> <h2 className="text-sm font-medium uppercase text-zinc-500 dark:text-zinc-400 tracking-wider">Investments</h2> <button className="text-xl text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors">›</button> </div>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">Total value</p>
-                <div className="flex items-baseline justify-between mb-1"> <p className="text-2xl font-bold text-zinc-900 dark:text-white">${(investments?.totalValue || 0).toLocaleString()}</p> <div className={`text-xs font-medium px-2 py-0.5 rounded-full ${(investments?.changePercent || 0) >= 0 ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400'}`}> {(investments?.changePercent || 0) >= 0 ? '+' : ''}{(investments?.changePercent || 0)}% </div> </div>
-                <div className="h-16 w-full"> <ResponsiveContainer width="100%" height="100%"> <AreaChart data={investmentData} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}> <defs><linearGradient id="investmentGradient" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} /><stop offset="95%" stopColor="#22c55e" stopOpacity={0} /></linearGradient></defs> <Tooltip content={<CustomTooltip />} cursor={false} /> <Area type="monotone" dataKey="value" stroke="#22c55e" strokeWidth={1.5} fill="url(#investmentGradient)" dot={false} /> </AreaChart> </ResponsiveContainer> </div>
+
+             {/* Investments Portfolio - Make clickable */}
+             <div
+               className="bg-white dark:bg-zinc-900 rounded-2xl p-5 sm:p-6 shadow border border-zinc-200 dark:border-zinc-800 cursor-pointer hover:shadow-lg transition-shadow duration-150"
+               onClick={() => navigate('/finance')} // Navigate to /finance for now
+               role="button"
+               tabIndex={0}
+                onKeyDown={(e) => e.key === 'Enter' && navigate('/finance')} // Accessibility
+             >
+                 <div className="flex items-center justify-between mb-2">
+                   <h2 className="text-sm font-medium uppercase text-zinc-500 dark:text-zinc-400 tracking-wider">Investments</h2>
+                    {/* Arrow removed */}
+                 </div>
+                 <p className="text-xs text-zinc-500 dark:text-zinc-400">Total value</p>
+                 <div className="flex items-baseline justify-between mb-1">
+                   <p className="text-2xl font-bold text-zinc-900 dark:text-white">${(investments?.totalValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                   {investments?.changePercent !== undefined && (
+                      <div className={`text-xs font-medium px-2 py-0.5 rounded-full ${(investments?.changePercent || 0) >= 0 ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400'}`}>
+                         {(investments?.changePercent || 0) >= 0 ? '+' : ''}{(investments?.changePercent || 0).toFixed(2)}%
+                      </div>
+                   )}
+                 </div>
+                 <div className="h-16 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                       <AreaChart data={investmentChartData} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
+                          <defs><linearGradient id="investmentGradient" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} /><stop offset="95%" stopColor="#22c55e" stopOpacity={0} /></linearGradient></defs>
+                          <Tooltip content={<CustomTooltip />} cursor={false} />
+                          <Area type="monotone" dataKey="value" stroke="#22c55e" strokeWidth={1.5} fill="url(#investmentGradient)" dot={false} />
+                        </AreaChart>
+                    </ResponsiveContainer>
+                 </div>
               </div>
-             {/* Most Frequent Expenses (Breakdown) */}
+
+             {/* Most Frequent Expenses (Breakdown) - Placeholder */}
              <div className="bg-white dark:bg-zinc-900 rounded-2xl p-5 sm:p-6 shadow border border-zinc-200 dark:border-zinc-800">
                 <h2 className="text-sm font-medium uppercase text-zinc-500 dark:text-zinc-400 tracking-wider mb-1">Breakdown</h2>
                 <h3 className="text-base font-bold mb-4 text-zinc-800 dark:text-zinc-200">Most Frequent Expenses</h3>
-                {(frequentExpenses || []).map((e) => ( <div key={e.id} className="mb-3 p-3 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50"> <div className="flex items-center font-semibold text-sm mb-2 text-zinc-800 dark:text-zinc-200"> <span className="text-base mr-2">{e.icon}</span> <span>{e.title}</span> </div> <div className="text-xs text-zinc-600 dark:text-zinc-400 grid grid-cols-3 gap-2"> <div><p className="text-zinc-500 dark:text-zinc-500">This month</p><p className="font-medium text-zinc-700 dark:text-zinc-300">{e.times}x</p></div> <div><p className="text-zinc-500 dark:text-zinc-500">Avg. spent</p><p className="font-medium text-zinc-700 dark:text-zinc-300">${(e.avg || 0).toFixed(2)}</p></div> <div><p className="text-zinc-500 dark:text-zinc-500">Total</p><p className="font-medium text-zinc-700 dark:text-zinc-300">${(e.total || 0).toFixed(2)}</p></div> </div> </div> ))}
-                {(frequentExpenses?.length === 0) && ( <p className="text-xs text-zinc-500 dark:text-zinc-400 italic mb-4">No recurring expenses tracked yet.</p> )}
-                <button className="w-full mt-4 py-2 border border-zinc-300 dark:border-zinc-700 rounded-full text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"> See full breakdown </button>
+                {(frequentExpenses || []).length > 0 ? (
+                  (frequentExpenses || []).map((e) => (
+                    <div key={e.id} className="mb-3 p-3 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50">
+                       {/* Display based on actual frequent expense data */}
+                         <div className="flex items-center font-semibold text-sm mb-2 text-zinc-800 dark:text-zinc-200"> <span className="text-base mr-2">{e.icon || '❓'}</span> <span>{e.title || 'Expense'}</span> </div> <div className="text-xs text-zinc-600 dark:text-zinc-400 grid grid-cols-3 gap-2"> <div><p className="text-zinc-500 dark:text-zinc-500">This month</p><p className="font-medium text-zinc-700 dark:text-zinc-300">{e.times || 0}x</p></div> <div><p className="text-zinc-500 dark:text-zinc-500">Avg. spent</p><p className="font-medium text-zinc-700 dark:text-zinc-300">${(e.avg || 0).toFixed(2)}</p></div> <div><p className="text-zinc-500 dark:text-zinc-500">Total</p><p className="font-medium text-zinc-700 dark:text-zinc-300">${(e.total || 0).toFixed(2)}</p></div> </div>
+                      </div>
+                  ))
+                 ) : (
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 italic mb-4">No recurring expenses tracked yet.</p>
+                 )}
+                 <button className="w-full mt-4 py-2 border border-zinc-300 dark:border-zinc-700 rounded-full text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors">
+                   See full breakdown
+                 </button>
              </div>
           </div>
         </div>
       </div>
 
       {/* --- Modals --- */}
-      {/* Bank Connection Modal (Existing) */}
-      {showAccountModal && <AddAccountModal />}
+      <AddAccountModal />
 
-      {/* Entry Add/Edit Modal (New) */}
       <AnimatePresence>
         {isEntryModalOpen && (
           <EntryFormModal
             isOpen={isEntryModalOpen}
             onClose={closeEntryModal}
             onSubmit={handleEntryFormSubmit}
-            onDelete={handleDeleteEntry} // Pass delete handler
+            onDelete={handleDeleteEntry}
             mode={entryModalMode}
             categoryType={currentEntryCategory.type}
             categoryName={currentEntryCategory.name}
