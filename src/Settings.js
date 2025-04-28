@@ -2,21 +2,22 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { User, Mail, KeyRound, LogOut, Save, CheckCircle, AlertCircle, Loader, Upload, Trash2, Camera } from 'lucide-react'; // Added Upload, Trash2, Camera
+import { User, Mail, KeyRound, LogOut, Save, CheckCircle, AlertCircle, Loader, Upload, Trash2, Camera, UserCircle as UserIconFallback } from 'lucide-react'; // Added UserCircle for fallback
 
 // Constants
 const API_URL = process.env.REACT_APP_API_URL || 'https://turbinix-backend.onrender.com'; // Mock API URL
 const PROFILE_PICTURE_KEY = 'turbinixProfilePicture'; // localStorage key for profile pic
 
 // --- Helper: Get Initials ---
-const getInitials = (fullName) => {
-    if (!fullName || typeof fullName !== 'string') return '?';
-    const names = fullName.trim().split(' ');
-    if (names.length === 1 && names[0]) return names[0][0].toUpperCase();
-    if (names.length > 1 && names[0] && names[names.length - 1]) {
-        return (names[0][0] + names[names.length - 1][0]).toUpperCase();
+const getInitials = (firstName, lastName) => {
+    const firstInitial = firstName?.[0]?.toUpperCase() || '';
+    const lastInitial = lastName?.[0]?.toUpperCase() || '';
+    if (firstInitial && lastInitial) {
+        return `${firstInitial}${lastInitial}`;
+    } else if (firstInitial) {
+         return firstInitial; // Handle case where only first name might exist
     }
-    return '?'; // Fallback
+    return null; // Return null if no valid initials can be generated
 };
 
 
@@ -36,39 +37,62 @@ function Settings() {
     newPassword: '',
     confirmPassword: '',
   });
-  const [profilePic, setProfilePic] = useState(null); // State for profile picture data URL
+  const [profilePic, setProfilePic] = useState(null);
+  const [userInitials, setUserInitials] = useState(null); // Store calculated initials
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [profileMessage, setProfileMessage] = useState({ type: '', text: '' });
   const [passwordMessage, setPasswordMessage] = useState({ type: '', text: '' });
-  const [pictureMessage, setPictureMessage] = useState({ type: '', text: '' }); // Message for picture actions
+  const [pictureMessage, setPictureMessage] = useState({ type: '', text: '' });
 
 
   // --- Load Initial Data ---
   useEffect(() => {
-    const storedUsername = localStorage.getItem('user') || '';
-    const storedFullName = localStorage.getItem('fullName') || '';
-    const storedEmail = localStorage.getItem('email') || 'email@example.com';
-    const storedProfilePic = localStorage.getItem(PROFILE_PICTURE_KEY); // Load profile pic
+    const loadDataAndSetState = () => {
+        const storedUsername = localStorage.getItem('user') || '';
+        const storedFullName = localStorage.getItem('fullName') || '';
+        const storedEmail = localStorage.getItem('email') || 'email@example.com';
+        const storedProfilePic = localStorage.getItem(PROFILE_PICTURE_KEY);
 
-    const nameParts = storedFullName.split(' ');
-    const firstName = nameParts[0] || 'First Name';
-    const lastName = nameParts.slice(1).join(' ') || 'Last Name';
+        const nameParts = storedFullName.split(' ');
+        const firstName = nameParts[0] || ''; // Default to empty string if missing
+        const lastName = nameParts.slice(1).join(' ') || ''; // Default to empty string
 
-    setProfileInfo({
-      firstName,
-      lastName,
-      email: storedEmail,
-      username: storedUsername,
-    });
-    setProfilePic(storedProfilePic); // Set profile pic state
-    setPasswordInfo({ oldPassword: '', newPassword: '', confirmPassword: '' });
+        setProfileInfo({
+          firstName,
+          lastName,
+          email: storedEmail,
+          username: storedUsername,
+        });
+        setUserInitials(getInitials(firstName, lastName)); // Calculate initials
+        setProfilePic(storedProfilePic);
+        setPasswordInfo({ oldPassword: '', newPassword: '', confirmPassword: '' });
+    };
+
+    loadDataAndSetState(); // Initial load
+
+     // Listen for storage changes to update pic/initials immediately
+      const handleStorageChange = (event) => {
+          if (event.key === PROFILE_PICTURE_KEY || event.key === 'firstName' || event.key === 'lastName' || event.key === 'fullName') {
+              loadDataAndSetState(); // Reload data if relevant keys change
+          }
+      };
+      window.addEventListener('storage', handleStorageChange);
+      return () => window.removeEventListener('storage', handleStorageChange);
+
   }, []);
 
   // --- Handlers ---
   const handleProfileChange = (e) => {
     const { name, value } = e.target;
-    setProfileInfo(prev => ({ ...prev, [name]: value }));
+    setProfileInfo(prev => {
+       const newState = { ...prev, [name]: value };
+       // Recalculate initials whenever names change
+       if (name === 'firstName' || name === 'lastName') {
+           setUserInitials(getInitials(newState.firstName, newState.lastName));
+       }
+       return newState;
+    });
     setProfileMessage({ type: '', text: '' });
   };
 
@@ -86,11 +110,10 @@ function Settings() {
   // Profile Picture Handlers
    const handlePictureUpload = (event) => {
         const file = event.target.files?.[0];
-        setPictureMessage({ type: '', text: '' }); // Clear previous messages
+        setPictureMessage({ type: '', text: '' });
 
         if (!file) return;
 
-        // Basic validation (optional but recommended)
         if (!file.type.startsWith('image/')) {
             showTemporaryMessage(setPictureMessage, 'error', 'Please select an image file.');
             return;
@@ -110,7 +133,6 @@ function Settings() {
             } catch (error) {
                 console.error("Error saving profile picture to localStorage:", error);
                 showTemporaryMessage(setPictureMessage, 'error', 'Could not save picture. Storage might be full.');
-                 // Revert state if save fails
                  setProfilePic(localStorage.getItem(PROFILE_PICTURE_KEY));
             }
         };
@@ -126,6 +148,10 @@ function Settings() {
             setProfilePic(null);
             localStorage.removeItem(PROFILE_PICTURE_KEY);
             showTemporaryMessage(setPictureMessage, 'success', 'Profile picture removed.');
+             // Re-fetch initials in case names were cleared somehow, though unlikely
+             const firstName = localStorage.getItem('firstName') || '';
+             const lastName = localStorage.getItem('lastName') || '';
+             setUserInitials(getInitials(firstName, lastName));
         }
     }, []);
 
@@ -142,8 +168,13 @@ function Settings() {
     }
     setIsSavingProfile(true);
     try {
-      const newFullName = `${profileInfo.firstName.trim()} ${profileInfo.lastName.trim()}`;
+      const newFirstName = profileInfo.firstName.trim();
+      const newLastName = profileInfo.lastName.trim();
+      const newFullName = `${newFirstName} ${newLastName}`;
+      localStorage.setItem('firstName', newFirstName); // Save separately if needed by Nav
+      localStorage.setItem('lastName', newLastName); // Save separately if needed by Nav
       localStorage.setItem('fullName', newFullName);
+      setUserInitials(getInitials(newFirstName, newLastName)); // Update initials state directly too
       // TODO: POST update to backend
       showTemporaryMessage(setProfileMessage, 'success', 'Account info updated!');
     } catch (error) {
@@ -159,7 +190,6 @@ function Settings() {
     e.preventDefault();
     setPasswordMessage({ type: '', text: '' });
 
-    // Validation... (same as before)
     if (!passwordInfo.oldPassword || !passwordInfo.newPassword || !passwordInfo.confirmPassword) {
         showTemporaryMessage(setPasswordMessage, 'error', 'Please fill in all password fields.'); return;
     }
@@ -171,7 +201,6 @@ function Settings() {
     }
 
     setIsChangingPassword(true);
-    // --- MOCK API CALL --- (same as before)
     console.log("Attempting to change password for:", profileInfo.username);
     await new Promise(resolve => setTimeout(resolve, 1000));
     const mockSuccess = Math.random() > 0.3;
@@ -181,24 +210,24 @@ function Settings() {
     } else {
         showTemporaryMessage(setPasswordMessage, 'error', 'Failed to change password. Check old password or try again.');
     }
-    // --- END MOCK ---
     setIsChangingPassword(false);
   }, [passwordInfo, profileInfo.username]);
 
-  // Logout Handler
+  // Logout Handler - Redirects to '/'
   const handleLogout = useCallback(() => {
      if (window.confirm("Are you sure you want to log out?")) {
-         // Clear local storage... (same as before)
          localStorage.removeItem('user');
          localStorage.removeItem('fullName');
+         localStorage.removeItem('firstName'); // Ensure first name is cleared
+         localStorage.removeItem('lastName'); // Ensure last name is cleared
          localStorage.removeItem('email');
          localStorage.removeItem('authToken');
-         localStorage.removeItem(PROFILE_PICTURE_KEY); // Clear profile picture
+         localStorage.removeItem(PROFILE_PICTURE_KEY);
          localStorage.removeItem('userData');
          localStorage.removeItem('budgetData');
          localStorage.removeItem('turbinixDocuments');
-         navigate('/', { replace: true });
-         // Consider calling a logout function passed from App.js if needed
+         navigate('/', { replace: true }); // <<< Redirects to root
+         // Optionally trigger a state update in App.js via a callback if needed
      }
   }, [navigate]);
 
@@ -208,10 +237,9 @@ function Settings() {
     <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: props.delay || 0 }} // Use delay prop if passed
+        transition={{ duration: 0.4, delay: props.delay || 0 }}
         className={`bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 p-6 mb-6 relative overflow-hidden ${className}`}
     >
-        {/* Subtle glow effect */}
         <div className="absolute -inset-4 pointer-events-none z-0 opacity-5 dark:opacity-[0.08]">
              <div className="absolute top-0 left-0 w-48 h-48 bg-blue-400 rounded-full filter blur-3xl animate-pulse-glow"></div>
              <div className="absolute bottom-0 right-0 w-56 h-56 bg-sky-500 rounded-full filter blur-3xl animate-pulse-glow animation-delay-1000"></div>
@@ -240,7 +268,6 @@ function Settings() {
       </div>
   );
 
-   // --- Updated Button Component ---
   const SettingsButton = ({ onClick, loading, icon: Icon, children, type = "button", variant = "primary", className = "" }) => {
     const baseClasses = "inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-zinc-950";
     const variantClasses = {
@@ -258,6 +285,7 @@ function Settings() {
             className={`${baseClasses} ${variantClasses[variant]} ${loadingClasses} ${className}`}
         >
             {loading && <Loader size={14} className="animate-spin" />}
+            {/* Corrected: Use size prop for icon */}
             {!loading && Icon && <Icon size={14} />}
             <span>{children}</span>
         </button>
@@ -265,7 +293,6 @@ function Settings() {
   }
 
   const MessageDisplay = ({ message }) => {
-      // ... (same as before)
         if (!message.text) return null;
         const isSuccess = message.type === 'success';
         const colorClasses = isSuccess
@@ -310,9 +337,13 @@ function Settings() {
                              alt="Profile"
                              className="w-20 h-20 rounded-full object-cover border-2 border-zinc-300 dark:border-zinc-600 shadow-md"
                           />
-                      ) : (
-                          <div className="w-20 h-20 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-zinc-500 dark:text-zinc-400 text-2xl font-semibold border-2 border-zinc-300 dark:border-zinc-600 shadow-md">
-                             {getInitials(profileInfo.firstName + ' ' + profileInfo.lastName)}
+                      ) : userInitials ? ( // <<< Show initials if no pic but initials exist
+                          <div className="w-20 h-20 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-zinc-600 dark:text-zinc-300 text-2xl font-semibold border-2 border-zinc-300 dark:border-zinc-600 shadow-md select-none">
+                             {userInitials}
+                          </div>
+                      ): ( // <<< Final fallback if no pic and no initials
+                          <div className="w-20 h-20 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center border-2 border-zinc-300 dark:border-zinc-600 shadow-md">
+                              <UserIconFallback size={32} className="text-zinc-400 dark:text-zinc-500" />
                           </div>
                       )}
                        <button
