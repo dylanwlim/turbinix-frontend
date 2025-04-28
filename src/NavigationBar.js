@@ -1,14 +1,17 @@
 // src/NavigationBar.js
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion'; // Removed useAnimation as it wasn't used
+import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Menu, X, UserCircle, Settings, LogOut, LayoutDashboard, Wallet, // Budget
+  Menu, X, Settings, LogOut, LayoutDashboard, Wallet,
   BarChart3, // Investments icon
   FileText, // Documents
-  HelpCircle // Help Center
-  // Removed unused icons: Sparkles, Briefcase, Landmark
-} from 'lucide-react'; // Added UserCircle here
+  HelpCircle, // Help Center
+  UserCircle // Icon for fallback ONLY if no image AND no initials
+} from 'lucide-react';
+
+// --- Constants ---
+const PROFILE_PICTURE_KEY = 'turbinixProfilePicture';
 
 // --- Configuration ---
 const navLinks = [
@@ -17,7 +20,6 @@ const navLinks = [
   { to: '/investments', icon: BarChart3, label: 'Investments' },
   { to: '/documents', icon: FileText, label: 'Documents' },
   { to: '/updateshelp', icon: HelpCircle, label: 'Help' },
-  // Settings is now only in the avatar menu
 ];
 
 // --- Framer Motion Variants ---
@@ -73,14 +75,15 @@ const dropdownVariants = {
 };
 
 // --- Helper: Get Initials ---
-const getInitials = (fullName) => {
-    if (!fullName || typeof fullName !== 'string') return null;
-    const names = fullName.trim().split(' ');
-    if (names.length === 1 && names[0]) return names[0][0].toUpperCase();
-    if (names.length > 1 && names[0] && names[names.length - 1]) {
-        return (names[0][0] + names[names.length - 1][0]).toUpperCase();
+const getInitials = (firstName, lastName) => {
+    const firstInitial = firstName?.[0]?.toUpperCase() || '';
+    const lastInitial = lastName?.[0]?.toUpperCase() || '';
+    if (firstInitial && lastInitial) {
+        return `${firstInitial}${lastInitial}`;
+    } else if (firstInitial) {
+        return firstInitial; // Handle case where only first name might exist
     }
-    return null;
+    return null; // Return null if no valid initials can be generated
 };
 
 // --- Main Component ---
@@ -88,17 +91,41 @@ function NavigationBar({ onLogout }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
-  const [userInitials, setUserInitials] = useState(null);
+  const [userInitials, setUserInitials] = useState(null); // Initialize as null
+  const [profilePic, setProfilePic] = useState(null);
 
   const location = useLocation();
   const navigate = useNavigate();
   const accountMenuRef = useRef(null);
 
-  // Load initials on mount
+  // --- Effects ---
+
+  // Load user data and listen for storage changes
   useEffect(() => {
-      const fullName = localStorage.getItem('fullName');
-      setUserInitials(getInitials(fullName));
-  }, []);
+      const loadDataAndSetState = () => {
+        // Retrieve names from localStorage
+        const firstName = localStorage.getItem('firstName') || '';
+        const lastName = localStorage.getItem('lastName') || '';
+        setUserInitials(getInitials(firstName, lastName)); // Calculate initials
+
+        // Retrieve profile picture from localStorage
+        const storedProfilePic = localStorage.getItem(PROFILE_PICTURE_KEY);
+        setProfilePic(storedProfilePic); // Set state (will be null if not found)
+      };
+
+      loadDataAndSetState(); // Initial load
+
+      // Listen for storage changes to update pic/initials immediately
+      const handleStorageChange = (event) => {
+          // Check if relevant keys changed
+          if (event.key === PROFILE_PICTURE_KEY || event.key === 'firstName' || event.key === 'lastName' || event.key === 'fullName') {
+              loadDataAndSetState(); // Reload data if relevant keys change
+          }
+      };
+      window.addEventListener('storage', handleStorageChange);
+      return () => window.removeEventListener('storage', handleStorageChange);
+
+  }, []); // Run only once on mount
 
   // Scroll effect for sticky header
   useEffect(() => {
@@ -130,43 +157,40 @@ function NavigationBar({ onLogout }) {
   const handleLogoutClick = useCallback(() => {
      closeMenus();
      if (onLogout) {
-         onLogout(); // Use the handler passed from App.js
+         onLogout();
      } else {
          console.warn("onLogout prop missing - performing fallback logout.");
-         localStorage.clear(); // Clear all local storage as a fallback
+         localStorage.clear();
+         sessionStorage.clear();
          navigate('/', { replace: true });
-         window.location.reload(); // Force reload to ensure state reset
+         window.location.reload();
      }
   }, [onLogout, closeMenus, navigate]);
 
   // Active link check
    const isActive = (path) => {
-      // Handle base dashboard route also highlighting when on '/' after login, if desired.
-      // If '/' should NOT highlight dashboard, remove the `|| location.pathname === '/'` part.
       if (path === '/finance') {
           return location.pathname === path || location.pathname === '/';
       }
-      // For other paths, check if the current location starts with the path
-      // This handles nested routes correctly, e.g., /settings/profile should highlight /settings
-      return location.pathname.startsWith(path) && path !== '/'; // Avoid matching root always
+      return location.pathname.startsWith(path) && path !== '/';
    };
 
   // --- Sub-Components ---
   const NavLinkContent = ({ icon: Icon, label, disabled, isMobile }) => (
     <>
-      {Icon && <Icon size={isMobile ? 20 : 18} className="flex-shrink-0" />}
-      <span className={isMobile ? '' : 'text-sm'}>{label}</span>
+      {Icon && <Icon size={isMobile ? 20 : 16} className="flex-shrink-0" />}
+      <span className={`font-medium ${isMobile ? 'text-base' : 'text-sm'}`}>{label}</span>
       {disabled && <span className="text-[9px] uppercase font-bold text-zinc-400 dark:text-zinc-500 ml-auto">(Soon)</span>}
     </>
   );
 
   const NavLinkItem = ({ to, icon, label, disabled = false, isMobile = false, index = 0 }) => {
     const active = isActive(to);
-    const commonClasses = `flex items-center gap-3 transition-all duration-300 ease-in-out group relative ${isMobile ? 'px-4 py-3 rounded-lg' : 'px-3 py-2 rounded-md h-9'}`;
+    const commonClasses = `flex items-center gap-2.5 transition-all duration-200 ease-out group relative ${isMobile ? 'px-4 py-3 rounded-lg' : 'px-3 py-1.5 rounded-md h-9'}`;
     const activeClasses = isMobile
-        ? 'text-blue-600 dark:text-sky-400 bg-blue-100 dark:bg-sky-900/50 font-semibold' // Brighter mobile active bg
-        : 'text-blue-600 dark:text-sky-400 font-medium';
-    const inactiveClasses = `text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white ${isMobile ? 'hover:bg-zinc-100 dark:hover:bg-zinc-800' : 'hover:bg-zinc-100/60 dark:hover:bg-zinc-800/60'}`; // Slightly different hover for desktop
+        ? 'text-blue-600 dark:text-sky-400 bg-blue-100/70 dark:bg-sky-900/50 font-semibold'
+        : 'text-zinc-900 dark:text-white font-semibold';
+    const inactiveClasses = `text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white ${isMobile ? 'hover:bg-zinc-100 dark:hover:bg-zinc-800' : 'hover:bg-zinc-100/60 dark:hover:bg-zinc-800/60'}`;
     const disabledClasses = 'text-zinc-400 dark:text-zinc-600 cursor-not-allowed opacity-50 pointer-events-none';
 
     const motionProps = isMobile ? { variants: itemVariants, custom: index, layout: "position" } : {};
@@ -181,7 +205,7 @@ function NavigationBar({ onLogout }) {
     }
 
     return (
-      <motion.div {...motionProps} className="relative"> {/* Added relative for underline */}
+      <motion.div {...motionProps} className="relative">
         <Link
           to={to}
           onClick={closeMenus}
@@ -189,12 +213,11 @@ function NavigationBar({ onLogout }) {
           aria-current={active ? 'page' : undefined}
         >
           {content}
-          {/* Desktop Active Indicator - Underline with Glow */}
           {!isMobile && active && (
               <motion.div
-                  className="absolute bottom-[-2px] left-1 right-1 h-[3px] bg-gradient-to-r from-blue-500 to-sky-500 rounded-full shadow-[0_0_8px_0px] shadow-sky-500/70 dark:shadow-sky-400/60" // Added glow via shadow
+                  className="absolute bottom-[-4px] left-1 right-1 h-[2.5px] bg-gradient-to-r from-blue-500 to-sky-500 rounded-full shadow-[0_0_6px_0px] shadow-sky-500/70 dark:shadow-sky-400/50"
                   layoutId="activeUnderline"
-                  transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+                  transition={{ type: 'spring', stiffness: 380, damping: 30 }}
               />
           )}
          </Link>
@@ -205,11 +228,11 @@ function NavigationBar({ onLogout }) {
   return (
     <>
       {/* Main Navigation Bar */}
-      <nav className={`fixed top-0 left-0 right-0 z-40 h-16 transition-all duration-300 ease-in-out ${isScrolled ? 'bg-white/90 dark:bg-zinc-950/90 backdrop-blur-xl border-b border-zinc-200/80 dark:border-zinc-800/80 shadow-md' : 'bg-transparent border-b border-transparent'}`}>
+      <nav className={`fixed top-0 left-0 right-0 z-40 h-16 transition-all duration-300 ease-in-out ${isScrolled ? 'bg-white/90 dark:bg-zinc-950/90 backdrop-blur-md border-b border-zinc-200/80 dark:border-zinc-800/80 shadow-sm' : 'bg-transparent border-b border-transparent'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex justify-between items-center">
           {/* Logo/Brand */}
           <Link to="/finance" onClick={closeMenus} className="flex items-center gap-2 flex-shrink-0 group">
-             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-blue-600 dark:text-sky-500 transition-transform duration-300 group-hover:scale-110">
+             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-blue-600 dark:text-sky-500 transition-transform duration-300 group-hover:rotate-[15deg]">
                 <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                 <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                 <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -218,7 +241,7 @@ function NavigationBar({ onLogout }) {
           </Link>
 
           {/* Desktop Navigation Links */}
-          <div className="hidden md:flex items-center space-x-1 lg:space-x-2">
+          <div className="hidden md:flex items-center space-x-1 lg:space-x-1.5">
             {navLinks.map((link) => (
               <NavLinkItem key={link.to} {...link} />
             ))}
@@ -230,13 +253,21 @@ function NavigationBar({ onLogout }) {
             <div className="relative" ref={accountMenuRef}>
               <button
                 onClick={toggleAccountMenu}
-                className="flex items-center justify-center w-9 h-9 rounded-full bg-zinc-100 dark:bg-zinc-800 hover:ring-2 hover:ring-blue-400 dark:hover:ring-sky-500 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-sky-500 focus:ring-offset-2 dark:focus:ring-offset-zinc-950"
+                className="flex items-center justify-center w-9 h-9 rounded-full bg-zinc-100 dark:bg-zinc-800/70 border border-zinc-200 dark:border-zinc-700/80 hover:ring-2 hover:ring-blue-400 dark:hover:ring-sky-500 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-sky-500 focus:ring-offset-2 dark:focus:ring-offset-zinc-950 overflow-hidden"
                 aria-label="Account menu"
               >
-                {userInitials ? (
-                    <span className="text-sm font-semibold text-zinc-700 dark:text-zinc-200 select-none">{userInitials}</span>
+                {/* --- Corrected Profile Picture / Initials Logic --- */}
+                {profilePic ? (
+                    <img
+                        src={profilePic}
+                        alt="Profile"
+                        className="w-full h-full object-cover" // Use object-cover to fill circle
+                    />
+                ) : userInitials ? ( // Check for initials *before* fallback icon
+                    <span className="text-xs font-semibold text-zinc-600 dark:text-zinc-300 select-none leading-none">{userInitials}</span>
                 ) : (
-                    <UserCircle size={20} className="text-zinc-600 dark:text-zinc-400" />
+                    // Fallback icon only if no picture AND no initials
+                    <UserCircle size={20} className="text-zinc-500 dark:text-zinc-400" />
                 )}
               </button>
               <AnimatePresence>
@@ -281,7 +312,7 @@ function NavigationBar({ onLogout }) {
                        animate={{ opacity: 1, rotate: 0, scale: 1 }}
                        exit={{ opacity: 0, rotate: 90, scale: 0.7 }}
                        transition={{ duration: 0.2 }}
-                       style={{ display: 'flex' }} // Ensure icon takes space during animation
+                       style={{ display: 'flex' }}
                    >
                      {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
                    </motion.div>
@@ -303,7 +334,7 @@ function NavigationBar({ onLogout }) {
                  exit={{ opacity: 0 }}
                  transition={{ duration: 0.3 }}
                  className="fixed inset-0 z-30 bg-black/60 backdrop-blur-sm md:hidden"
-                 onClick={toggleMobileMenu} // Close on overlay click
+                 onClick={toggleMobileMenu}
              />
               {/* Sidebar Content */}
               <motion.div
@@ -324,11 +355,10 @@ function NavigationBar({ onLogout }) {
 
                 {/* Navigation Links */}
                 <motion.ul
-                  className="space-y-1.5 flex-grow overflow-y-auto" // Allow scroll if needed
-                  variants={sidebarVariants} // Controls stagger timing
+                  className="space-y-1.5 flex-grow overflow-y-auto"
+                  variants={sidebarVariants}
                 >
                    {navLinks.map((link, index) => (
-                      // Wrap <li> with motion for individual animation control
                       <motion.li key={link.to} custom={index} variants={itemVariants}>
                           <NavLinkItem {...link} isMobile={true} />
                       </motion.li>

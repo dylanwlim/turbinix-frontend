@@ -68,13 +68,31 @@ const faqs = [
   },
 ];
 
+// --- Animation Variants for Page Load ---
+const pageVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: {
+        opacity: 1,
+        y: 0,
+        transition: {
+            duration: 0.6,
+            ease: "easeOut",
+            when: "beforeChildren", // Ensure parent animates before children
+            staggerChildren: 0.1 // Add a slight stagger to child sections
+        }
+    }
+};
+
+const sectionVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.5 } }
+};
+
+
 // --- Components ---
 
-const FeatureCard = ({ title, description, icon, index }) => (
-    <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: index * 0.05 }}
+const FeatureCard = ({ title, description, icon }) => ( // Removed index and individual motion
+    <div
         className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-5 shadow-sm hover:shadow-lg dark:hover:border-sky-700/40 hover:border-blue-400/40 transition-all duration-200 group"
     >
         <div className="flex items-center mb-2">
@@ -82,7 +100,7 @@ const FeatureCard = ({ title, description, icon, index }) => (
             <h3 className="text-base font-semibold text-zinc-800 dark:text-zinc-100 group-hover:text-blue-600 dark:group-hover:text-sky-400 transition-colors">{title}</h3>
         </div>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">{description}</p>
-    </motion.div>
+    </div>
 );
 
 const AccordionItem = ({ question, answer, isOpen, onClick }) => (
@@ -121,13 +139,8 @@ const AccordionItem = ({ question, answer, isOpen, onClick }) => (
     </div>
 );
 
-const SectionWrapper = ({ title, icon: Icon, children, delay = 0 }) => (
-     <motion.section
-         initial={{ opacity: 0, y: 20 }}
-         animate={{ opacity: 1, y: 0 }}
-         transition={{ duration: 0.5, delay: delay }}
-         className="mb-12"
-     >
+const SectionWrapper = ({ title, icon: Icon, children }) => ( // Removed animation props
+     <motion.section variants={sectionVariants} className="mb-12"> {/* Inherit animation from parent */}
         <div className="flex items-center gap-2 mb-5">
             <Icon className="w-6 h-6 text-blue-600 dark:text-sky-500" />
             <h2 className="text-2xl font-semibold text-zinc-800 dark:text-zinc-100">{title}</h2>
@@ -239,28 +252,30 @@ function UpdatesHelp() {
 };
 
   return (
+    // Outermost container for the page
     <div className="min-h-screen px-4 sm:px-6 pt-10 pb-20 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-white transition-colors duration-300">
-      <div className="max-w-5xl mx-auto">
-        <motion.h1
-           initial={{ opacity: 0, y: -20 }}
-           animate={{ opacity: 1, y: 0 }}
-           transition={{ duration: 0.5 }}
-           className="text-3xl sm:text-4xl font-semibold tracking-tight text-center text-zinc-800 dark:text-zinc-100 mb-12"
-        >
+      {/* Wrapper for page content and main animation */}
+      <motion.div
+          className="max-w-5xl mx-auto"
+          variants={pageVariants}
+          initial="hidden"
+          animate="visible" // This animation runs only once when the component mounts
+      >
+        <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight text-center text-zinc-800 dark:text-zinc-100 mb-12">
            Updates & Help Center
-        </motion.h1>
+        </h1>
 
         {/* Coming Soon Section */}
-         <SectionWrapper title="Coming Soon" icon={Sparkles} delay={0.1}>
+         <SectionWrapper title="Coming Soon" icon={Sparkles}>
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                 {upcomingFeatures.map((feature, index) => (
-                    <FeatureCard key={feature.title} {...feature} index={index} />
+                 {upcomingFeatures.map((feature) => ( // Removed index
+                    <FeatureCard key={feature.title} {...feature} />
                  ))}
              </div>
          </SectionWrapper>
 
         {/* FAQ Section */}
-         <SectionWrapper title="Frequently Asked Questions" icon={HelpCircle} delay={0.2}>
+         <SectionWrapper title="Frequently Asked Questions" icon={HelpCircle}>
              <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 p-4 sm:p-6">
                  {faqs.map((faq, index) => (
                     <AccordionItem
@@ -275,7 +290,7 @@ function UpdatesHelp() {
          </SectionWrapper>
 
         {/* Message Dylan Section */}
-         <SectionWrapper title="Message Dylan" icon={MessageSquare} delay={0.3}>
+         <SectionWrapper title="Message Dylan" icon={MessageSquare}>
             <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 p-6 sm:p-8">
                 <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-5">
                     Have a question, bug report, or feature suggestion? Let me know directly!
@@ -336,8 +351,15 @@ function UpdatesHelp() {
             </div>
          </SectionWrapper>
 
-      </div>
-    </div>
+      </motion.div> {/* End of main animated content container */}
+
+      {/* Footer */}
+      <footer className="text-center text-xs text-zinc-500 dark:text-zinc-400 pt-10 pb-6 space-y-1 max-w-5xl mx-auto">
+          <p>Turbinix Beta Version 1.0</p>
+          <p>This is an early beta. Please let me know anything you want to see improved using the message box above — it helps a ton!</p>
+      </footer>
+
+    </div> // End of outermost container
   );
 }
 

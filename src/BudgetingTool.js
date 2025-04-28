@@ -46,6 +46,7 @@ const formatCurrency = (value, digits = 2) => {
 const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     try {
+        // Add T00:00:00 to ensure parsing in local timezone, avoiding potential off-by-one day errors
         return new Date(dateString + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
     } catch (e) { return 'Invalid Date'; }
 };
@@ -53,6 +54,7 @@ const formatDate = (dateString) => {
 const formatDateShort = (dateString) => {
      if (!dateString) return 'N/A';
     try {
+         // Add T00:00:00 to ensure parsing in local timezone
         return new Date(dateString + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
     } catch (e) { return 'Invalid Date'; }
 }
@@ -64,6 +66,7 @@ function BudgetingTool() {
   const [activeTab, setActiveTab] = useState(TABS[0]);
   const [budgetData, setBudgetData] = useState(defaultBudgetData);
   const [userLiabilities, setUserLiabilities] = useState([]); // For debt recommendations
+  const [hoveredTab, setHoveredTab] = useState(null); // For tab glow effect
 
   // Modal States
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -342,42 +345,66 @@ function BudgetingTool() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-zinc-800 dark:text-zinc-100">Budget Center</h1>
+          {/* *** Updated Header *** */}
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-zinc-800 dark:text-zinc-100">Budget Overview</h1>
           <div className="flex space-x-3">
+             {/* *** Updated Buttons *** */}
             <button
               onClick={() => handleOpenModal('transaction')}
-              className="flex items-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-semibold transition-colors shadow-md text-white"
+               className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 rounded-lg text-sm font-semibold transition-all duration-150 shadow-md hover:shadow-lg hover:shadow-red-700/30 dark:shadow-red-500/30 text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 dark:focus:ring-offset-zinc-950"
             >
               <Plus size={16} /> Expense
             </button>
             <button
               onClick={() => handleOpenModal('income')}
-              className="flex items-center gap-1.5 px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-semibold transition-colors shadow-md text-white"
+              className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 rounded-lg text-sm font-semibold transition-all duration-150 shadow-md hover:shadow-lg hover:shadow-green-700/30 dark:shadow-green-500/30 text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 dark:focus:ring-offset-zinc-950"
             >
               <Plus size={16} /> Income
             </button>
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="mb-8 border-b border-zinc-200 dark:border-zinc-700">
-          <nav className="-mb-px flex space-x-6 overflow-x-auto pb-px" aria-label="Tabs">
-            {TABS.map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`whitespace-nowrap pb-3 px-1 border-b-2 text-sm font-medium transition-colors duration-150 focus:outline-none focus:ring-offset-0 focus:ring-2 dark:focus:ring-offset-zinc-950 focus:ring-blue-500 dark:focus:ring-sky-500 rounded-t-md ${
-                  activeTab === tab
-                    ? 'border-blue-600 dark:border-sky-500 text-blue-600 dark:text-sky-400'
-                    : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:border-zinc-300 dark:hover:border-zinc-600'
-                }`}
-                aria-current={activeTab === tab ? 'page' : undefined}
-              >
-                {tab}
-              </button>
-            ))}
-          </nav>
-        </div>
+         {/* *** Updated Tabs *** */}
+        <div className="mb-8 border-b border-zinc-200 dark:border-zinc-800 relative">
+            <nav className="-mb-px flex space-x-6 overflow-x-auto pb-px" aria-label="Tabs">
+                 {TABS.map((tab) => (
+                     <button
+                         key={tab}
+                         onClick={() => setActiveTab(tab)}
+                         onMouseEnter={() => setHoveredTab(tab)}
+                         onMouseLeave={() => setHoveredTab(null)}
+                         className={`relative whitespace-nowrap pb-3 px-1 border-b-2 text-sm font-medium transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-blue-300 dark:focus:ring-sky-700 dark:focus:ring-offset-zinc-950 rounded-t-md ${
+                             activeTab === tab
+                                 ? 'border-blue-600 dark:border-sky-500 text-blue-600 dark:text-sky-400'
+                                 : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-white hover:border-zinc-300 dark:hover:border-zinc-600'
+                         }`}
+                         aria-current={activeTab === tab ? 'page' : undefined}
+                     >
+                         {tab}
+                          {/* Subtle glow/indicator effect for active/hover */}
+                          {activeTab === tab && (
+                              <motion.div
+                                  className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-gradient-to-r from-blue-500 to-sky-500 rounded-full shadow-[0_0_8px_0px] shadow-sky-500/50 dark:shadow-sky-400/40" // Adjusted glow shadow
+                                  layoutId="activeBudgetTabIndicator"
+                                  transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+                              />
+                          )}
+                         {/* Hover indicator (optional, more subtle) */}
+                         {/* {hoveredTab === tab && activeTab !== tab && (
+                              <motion.div
+                                  className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-zinc-300 dark:bg-zinc-700 rounded-full"
+                                  layoutId="hoverBudgetTabIndicator"
+                                  initial={{ opacity: 0 }}
+                                  animate={{ opacity: 1 }}
+                                  exit={{ opacity: 0 }}
+                                  transition={{ duration: 0.15 }}
+                              />
+                          )} */}
+                     </button>
+                 ))}
+            </nav>
+         </div>
+
 
         {/* Tab Content Area */}
         <div>

@@ -1,6 +1,6 @@
 // src/FinanceDashboard.js
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom'; // Import useNavigate
+import { useNavigate } from 'react-router-dom';
 import {
   ResponsiveContainer,
   LineChart,
@@ -18,16 +18,14 @@ import EntryFormModal from './EntryFormModal';
 // --- Constants & Helpers ---
 const USER_DATA_KEY = 'userData';
 
+// Tooltip Component
 const CustomTooltip = ({ active, payload, label, currency = '$' }) => {
-  // The label already comes pre-formatted from the tickFormatter
+  // Label comes pre-formatted from getFilteredDataAndInterval/tickFormatter
   if (active && payload && payload.length) {
     return (
       <div className="px-3 py-1.5 bg-gray-800 dark:bg-zinc-950/80 text-white text-xs rounded-lg shadow-lg border border-white/10 backdrop-blur-sm">
-        {/* Display the formatted label directly */}
         <p className="font-semibold mb-0.5">{label}</p>
         <p className="text-base font-medium">{`${currency}${payload[0].value.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}</p>
-        {/* Optionally add the full date if needed from payload */}
-        {/* <p className="text-xs opacity-70">{payload[0].payload.date}</p> */}
       </div>
     );
   }
@@ -35,10 +33,7 @@ const CustomTooltip = ({ active, payload, label, currency = '$' }) => {
 };
 
 
-// Default structure for sections if they don't exist in localStorage
-const defaultSpending = { spentThisMonth: 0, latestTransactions: [] };
-const defaultInvestments = { totalValue: 0, changePercent: 0, history: [] };
-const defaultFrequentExpenses = [];
+// Default structure for new user data
 const defaultUserData = {
     assets: {
         'Real Estate': [],
@@ -49,12 +44,12 @@ const defaultUserData = {
       liabilities: {
         Loans: [],
       },
-    spending: defaultSpending,
-    investments: defaultInvestments,
-    frequentExpenses: defaultFrequentExpenses,
+    spending: { spentThisMonth: 0, latestTransactions: [] },
+    investments: { totalValue: 0, changePercent: 0, history: [] },
+    frequentExpenses: [],
 };
 
-// Function to format date/time nicely for display (e.g., "Updated x ago")
+// Format timestamp for display
 const formatTimestamp = (isoString) => {
   if (!isoString) return 'Updated recently';
   const date = new Date(isoString);
@@ -72,64 +67,120 @@ const formatTimestamp = (isoString) => {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 };
 
-// Helper to format date for XAxis based on the selected time range
-const formatDateForAxis = (dateString, range) => {
+// Format date for XAxis based on the selected time range AND total data points
+const formatDateForAxis = (dateString, range, totalPoints) => {
     const date = new Date(dateString + 'T00:00:00'); // Ensure local timezone interpretation
     if (isNaN(date.getTime())) return ''; // Handle invalid dates
 
-    if (range === 'ALL') {
-        // Format as MM/YY
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const year = String(date.getFullYear()).slice(-2);
-        return `${month}/${year}`;
-    } else {
-        // Format as M/D for 1W, 1M, 3M, YTD
-        return `${date.getMonth() + 1}/${date.getDate()}`;
+    const isDense = totalPoints > 30; // Example threshold for density
+
+    switch (range) {
+        case 'ALL':
+            // Format as YYYY for very sparse, MM/YY for medium, M/D for dense (shouldn't happen for ALL)
+            if (totalPoints < 15) return date.getFullYear().toString();
+            return `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getFullYear()).slice(-2)}`;
+        case 'YTD':
+            // Format as Mon for sparse, M/D for dense
+            if (isDense) return `${date.getMonth() + 1}/${date.getDate()}`;
+            return date.toLocaleString('default', { month: 'short' });
+        case '3M':
+             // Format as Mon D for sparse, M/D for dense
+            if (isDense) return `${date.getMonth() + 1}/${date.getDate()}`;
+             return date.toLocaleString('default', { month: 'short', day: 'numeric' });
+        case '1M':
+        case '1W':
+        default:
+             // Format as M/D
+            return `${date.getMonth() + 1}/${date.getDate()}`;
     }
 };
 
+// Helper to determine optimal tick interval and filter data for chart clarity
+const getFilteredDataAndInterval = (data, range) => {
+    const n = data.length;
+    if (n <= 1) return { filteredData: data, interval: 0, tickFormatter: (tick) => formatDateForAxis(tick, range, n) };
+
+    let maxTicks;
+    let interval;
+
+    // Adjust maxTicks based on range for desired density
+    switch (range) {
+        case '1W': maxTicks = 7; break;
+        case '1M': maxTicks = 8; break; // e.g., weekly labels
+        case '3M': maxTicks = 10; break; // e.g., ~bi-weekly labels
+        case 'YTD': maxTicks = 12; break; // e.g., monthly labels
+        case 'ALL': maxTicks = n > 365 ? 12 : 8; break; // e.g., quarterly/yearly for multi-year
+        default: maxTicks = 10;
+    }
+
+    if (n <= maxTicks) {
+        interval = 0; // Show all ticks if fewer than max
+    } else {
+        interval = Math.max(0, Math.floor(n / maxTicks) -1); // Calculate interval to approximate maxTicks
+    }
+
+    // Format the name property *before* passing to chart for CustomTooltip label
+     const formattedData = data.map(point => ({
+        ...point,
+        // Pass total points for context-aware formatting
+        formattedName: formatDateForAxis(point.date, range, n)
+     }));
+
+    return {
+      filteredData: formattedData,
+      interval: interval,
+      // Tick formatter now receives the original date string ('name')
+      tickFormatter: (tick) => formatDateForAxis(tick, range, n)
+    };
+};
+
+
 // --- Main Component ---
 function FinanceDashboard() {
-  const navigate = useNavigate(); // Hook for navigation
+  const navigate = useNavigate();
   const [selectedTab, setSelectedTab] = useState('assets');
   const [netWorthTimeRange, setNetWorthTimeRange] = useState('ALL');
+
+  // Initialize userData ensuring defaults are deeply merged
   const [userData, setUserData] = useState(() => {
     const stored = localStorage.getItem(USER_DATA_KEY);
     if (stored) {
       try {
         const parsed = JSON.parse(stored);
+        // Deep merge function
         const mergeWithDefaults = (target, source) => {
            // Ensure target is an object before merging
            if (typeof target !== 'object' || target === null) {
              target = {};
            }
+          const sourceCopy = JSON.parse(JSON.stringify(source)); // Deep copy defaults
 
-          for (const key of Object.keys(source)) {
-             if (source[key] instanceof Object && !(source[key] instanceof Array) && !(source[key] === null) && key in target && typeof target[key] === 'object') {
-              target[key] = mergeWithDefaults(target[key] || {}, source[key]);
+          for (const key of Object.keys(sourceCopy)) {
+             if (sourceCopy[key] instanceof Object && !(sourceCopy[key] instanceof Array) && !(sourceCopy[key] === null)) {
+                 // Ensure target key exists and is an object before recursing
+                 if (typeof target[key] === 'undefined') {
+                     target[key] = {};
+                 } else if (typeof target[key] !== 'object' || target[key] === null || Array.isArray(target[key])) {
+                     target[key] = {}; // Overwrite if target is not a compatible object
+                 }
+                 target[key] = mergeWithDefaults(target[key], sourceCopy[key]);
              } else if (!(key in target) || target[key] === undefined || target[key] === null) {
-              target[key] = source[key];
-            }
-          }
-          for (const key of Object.keys(target)) {
-            if (source[key] instanceof Array && !(target[key] instanceof Array)) {
-              target[key] = source[key];
-            }
-             // Ensure nested objects/arrays are also initialized if missing in stored data
-            if (typeof source[key] === 'object' && source[key] !== null && typeof target[key] === 'undefined') {
-                 target[key] = JSON.parse(JSON.stringify(source[key])); // Deep copy default structure
+                 // Copy value from defaults only if missing or null/undefined in target
+                 target[key] = sourceCopy[key];
+            } else if (sourceCopy[key] instanceof Array && !(target[key] instanceof Array)) {
+                 // If default is array but target isn't, use default (e.g., initializing empty lists)
+                 target[key] = sourceCopy[key];
             }
           }
           return target;
         };
-        const deepDefault = JSON.parse(JSON.stringify(defaultUserData));
-        return mergeWithDefaults(parsed, deepDefault);
+        return mergeWithDefaults(parsed, defaultUserData);
       } catch (e) {
         console.error("Failed to parse user data from localStorage", e);
-        return JSON.parse(JSON.stringify(defaultUserData));
+        return JSON.parse(JSON.stringify(defaultUserData)); // Deep copy default on error
       }
     }
-    return JSON.parse(JSON.stringify(defaultUserData));
+    return JSON.parse(JSON.stringify(defaultUserData)); // Deep copy default initially
   });
 
   const [username, setUsername] = useState('');
@@ -140,31 +191,30 @@ function FinanceDashboard() {
   const [entryModalMode, setEntryModalMode] = useState('add');
   const [currentEntryCategory, setCurrentEntryCategory] = useState({ type: '', name: '' });
   const [currentItemToEdit, setCurrentItemToEdit] = useState(null);
+  const [showBreakdownModal, setShowBreakdownModal] = useState(false); // State for "Coming Soon" modal
 
-  // --- Persist Data to localStorage ---
+  // --- Persist Data ---
   useEffect(() => {
-    const dataToSave = { ...defaultUserData, ...userData };
-    localStorage.setItem(USER_DATA_KEY, JSON.stringify(dataToSave));
+    localStorage.setItem(USER_DATA_KEY, JSON.stringify(userData));
   }, [userData]);
 
   // --- Fetch Username ---
   useEffect(() => {
      const storedFullName = localStorage.getItem('fullName');
-    const storedUsername = localStorage.getItem('user');
+     const storedUsername = localStorage.getItem('user');
      setUsername(storedFullName?.split(' ')[0] || storedUsername || 'there');
   }, []);
 
   // --- Calculations ---
   const { assets, liabilities, spending, investments, frequentExpenses } = userData;
-
   const calculateTotal = (items) => (items || []).reduce((sum, i) => sum + (Number(i.value) || 0), 0);
-
   const allAssets = Object.values(assets || {}).flat();
   const allLiabilities = Object.values(liabilities || {}).flat();
-
   const totalAssets = calculateTotal(allAssets);
   const totalLiabilities = calculateTotal(allLiabilities);
   const currentNetWorth = totalAssets - totalLiabilities;
+  const hasAnyData = allAssets.length > 0 || allLiabilities.length > 0; // Check if user added any data
+
 
   // --- Color Mapping ---
   const colorMap = {
@@ -172,109 +222,114 @@ function FinanceDashboard() {
     Securities: '#38bdf8', Loans: '#ef4444', Default: '#a1a1aa',
   };
 
-  // --- Generate Net Worth Data (Synthetic) ---
+  // --- Generate Net Worth Data (Handles No Data Case) ---
   const netWorthChartData = useMemo(() => {
     const now = new Date();
     const data = [];
     let daysToShow;
     let startDate = new Date();
 
+    // Determine date range
     switch (netWorthTimeRange) {
       case '1W': daysToShow = 7; startDate.setDate(now.getDate() - 6); break;
       case '1M': daysToShow = 30; startDate.setMonth(now.getMonth() - 1); break;
       case '3M': daysToShow = 90; startDate.setMonth(now.getMonth() - 3); break;
-      case 'YTD': startDate = new Date(now.getFullYear(), 0, 1); daysToShow = Math.ceil((now - startDate) / (1000 * 60 * 60 * 24)) + 1; break; // +1 to include today
+      case 'YTD': startDate = new Date(now.getFullYear(), 0, 1); daysToShow = Math.ceil((now - startDate) / (1000 * 60 * 60 * 24)) + 1; break;
       case 'ALL':
       default: daysToShow = 365; startDate.setFullYear(now.getFullYear() - 1); break;
     }
-
     if (daysToShow <= 0) daysToShow = 1;
 
-     // Start simulation from a value slightly different from current, based on a plausible past trend
-     const startingMultiplier = 0.8 + Math.random() * 0.15; // Start between 80% and 95% of current
-     let value = currentNetWorth * startingMultiplier;
-     // Fluctuation factor relative to the magnitude of net worth
-    const fluctuationFactor = (0.001 + Math.random() * 0.005) * (Math.abs(currentNetWorth) || 1000); // Base fluctuation on magnitude
+    // If no user data exists, show a flat line at zero
+    if (!hasAnyData) {
+      const startStr = startDate.toISOString().split('T')[0];
+      const endStr = now.toISOString().split('T')[0];
+       return [
+           { date: startStr, name: startStr, value: 0, formattedName: formatDateForAxis(startStr, netWorthTimeRange, 2) },
+           { date: endStr, name: endStr, value: 0, formattedName: formatDateForAxis(endStr, netWorthTimeRange, 2) }
+       ];
+    }
+
+    // Generate synthetic data ONLY if user has data
+    const startingMultiplier = 0.8 + Math.random() * 0.15;
+    let value = currentNetWorth * startingMultiplier;
+    const fluctuationFactor = (0.001 + Math.random() * 0.005) * (Math.abs(currentNetWorth) || 1000);
 
     for (let i = 0; i < daysToShow; i++) {
       const date = new Date(startDate);
       date.setDate(startDate.getDate() + i);
+      const dateStr = date.toISOString().split('T')[0];
 
       if (i === daysToShow - 1 && date <= now) {
-        value = currentNetWorth; // Ensure the last point is the current net worth if today is included
+        value = currentNetWorth;
       } else if (date < now) {
-         // Simulate daily change
-        const changeDirection = Math.random() < 0.51 ? 1 : -1; // Slightly more likely to increase
-        const changeAmount = changeDirection * fluctuationFactor * (0.5 + Math.random()); // Random fluctuation
+        const changeDirection = Math.random() < 0.51 ? 1 : -1;
+        const changeAmount = changeDirection * fluctuationFactor * (0.5 + Math.random());
         value += changeAmount;
-        // Ensure value stays reasonable (e.g., doesn't cross zero unexpectedly)
         if (currentNetWorth >= 0 && value < 0) value = 0;
         if (currentNetWorth < 0 && value > 0) value = 0;
       } else if (date > now) {
-           continue; // Don't generate data for future dates
+           continue;
       }
 
-
       data.push({
-         date: date.toISOString().split('T')[0], // Store as YYYY-MM-DD
-         // We pass the raw date string here; formatting happens in tickFormatter
-         name: date.toISOString().split('T')[0],
+         date: dateStr,
+         name: dateStr, // Pass raw date string for filtering/interval calculation
          value: parseFloat(value.toFixed(2))
        });
     }
 
-     // Ensure the very last point accurately reflects today's net worth if it exists
+    // Ensure the last point is accurate
     const todayStr = now.toISOString().split('T')[0];
     const lastPoint = data[data.length - 1];
-     if (lastPoint && lastPoint.date === todayStr) {
-         lastPoint.value = parseFloat(currentNetWorth.toFixed(2));
-     } else if (!data.find(p => p.date === todayStr)) {
-         // If today is not in the generated data (e.g., exactly 1W ago ends yesterday), add it
-         data.push({
-            date: todayStr,
-             name: todayStr, // Pass raw date string
-             value: parseFloat(currentNetWorth.toFixed(2)),
-         });
-     }
+    if (lastPoint && lastPoint.date === todayStr) {
+        lastPoint.value = parseFloat(currentNetWorth.toFixed(2));
+    } else if (!data.find(p => p.date === todayStr) && daysToShow > 0) { // Add today if missing and data exists
+        data.push({
+           date: todayStr,
+            name: todayStr,
+            value: parseFloat(currentNetWorth.toFixed(2)),
+        });
+    }
 
-    // Ensure minimum data points for the chart
-    if(data.length < 2){
+    // Ensure minimum 2 data points if data exists
+    if (data.length === 1) {
         const yesterday = new Date(now);
-        yesterday.setDate(now.getDate() -1);
+        yesterday.setDate(now.getDate() - 1);
         const yesterdayStr = yesterday.toISOString().split('T')[0];
          data.unshift({
              date: yesterdayStr,
              name: yesterdayStr,
-             value: parseFloat((currentNetWorth * (1 + (Math.random() - 0.5) * 0.02)).toFixed(2)),
+             value: parseFloat((data[0].value * (1 + (Math.random() - 0.5) * 0.02)).toFixed(2)), // Slight variation
          });
     }
 
-
     return data;
-  }, [netWorthTimeRange, currentNetWorth]);
+  }, [netWorthTimeRange, currentNetWorth, hasAnyData]); // Depend on hasAnyData
+
+  // --- Filtered Data and Interval for Net Worth Chart ---
+  const { filteredData: filteredNetWorthData, interval: netWorthInterval, tickFormatter: netWorthTickFormatter } = useMemo(() => {
+      return getFilteredDataAndInterval(netWorthChartData, netWorthTimeRange);
+  }, [netWorthChartData, netWorthTimeRange]);
 
 
   // --- Generate Spending Mini-Graph Data ---
   const spendingChartData = useMemo(() => {
      const transactions = spending?.latestTransactions || [];
      if (transactions.length === 0) {
-        // Fallback data for a nice curve
-         return [ { name: 'Start', value: 50 }, { name: '', value: 80 }, { name: '', value: 60 }, { name: '', value: 90 }, { name: 'Now', value: 70 }, ];
+        return [ { name: 'Start', value: 0 }, { name: 'Now', value: 0 }, ]; // Start at zero if no data
     }
-     // Simple approach: show last N transaction amounts (absolute value for expenses)
      const recentSpending = transactions
-         .slice(0, 7) // Limit to last 7 transactions
+         .slice(0, 7)
          .map(tx => ({
-             // Use a simple index or relative label if dates are too close
-             name: formatDateForAxis(tx.date, '1W'), // Use short date format
+             name: formatDateForAxis(tx.date, '1W', transactions.length), // Use short date format
              value: Math.abs(tx.amount || 0)
          }))
-         .reverse(); // Show oldest first
+         .reverse();
 
-     // Ensure at least 2 points
      if(recentSpending.length < 2) {
-         recentSpending.unshift({ name: 'Earlier', value: recentSpending[0]?.value * 0.8 || 10 });
-         if(recentSpending.length < 2) recentSpending.push({ name: 'Now', value: recentSpending[0]?.value * 1.1 || 15 });
+         recentSpending.unshift({ name: 'Earlier', value: recentSpending[0]?.value * 0.8 || 0 }); // Start near zero
+         if(recentSpending.length < 2) recentSpending.push({ name: 'Now', value: recentSpending[0]?.value * 1.1 || 0 });
      }
      return recentSpending;
   }, [spending?.latestTransactions]);
@@ -286,11 +341,9 @@ function FinanceDashboard() {
     if (totalValue <= 0) {
       return [ { name: 'Start', value: 0 }, { name: 'Now', value: 0 }, ];
     } else {
-       // Simple upward trend fallback
-       // Consider using investment history if available later
       return [ { name: 'Start', value: totalValue * 0.95 }, { name: '', value: totalValue * 0.98 }, { name: 'Now', value: totalValue } ];
     }
-  }, [investments?.totalValue, investments?.history]);
+  }, [investments?.totalValue]);
 
 
   // --- CRUD Handlers ---
@@ -357,10 +410,11 @@ function FinanceDashboard() {
     }
   }, [entryModalMode, handleAddEntry, handleUpdateEntry]);
 
-
   // --- Child Components ---
+
+  // Collapsible Section - Set closed by default
   const CollapsibleSection = ({ title, color, items, categoryType }) => {
-    const [isOpen, setIsOpen] = useState(true);
+    const [isOpen, setIsOpen] = useState(false); // <<< Set to false by default
     const total = calculateTotal(items);
     const hasItems = items && items.length > 0;
 
@@ -369,7 +423,7 @@ function FinanceDashboard() {
         {/* Header Button */}
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="flex items-center justify-between w-full p-4 cursor-pointer text-left focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-sky-500 rounded-t-xl"
+          className="flex items-center justify-between w-full p-4 cursor-pointer text-left focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-sky-500 rounded-xl" // Apply rounding here too if needed when closed
           aria-expanded={isOpen}
           aria-controls={`section-content-${title.replace(/\s+/g, '-')}`}
         >
@@ -399,7 +453,7 @@ function FinanceDashboard() {
                 collapsed: { opacity: 0, height: 0 }
               }}
               transition={{ duration: 0.2, ease: [0.04, 0.62, 0.23, 0.98] }}
-              className="overflow-hidden border-t border-zinc-200 dark:border-zinc-800"
+              className="overflow-hidden border-t border-zinc-200 dark:border-zinc-800" // Border appears only when open
             >
               <div className="p-4 grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {/* Display Items */}
@@ -431,7 +485,7 @@ function FinanceDashboard() {
                 </button>
 
                 {/* Message when no items */}
-                {!hasItems && items?.length === 0 && (
+                 {items?.length === 0 && ( // Simplified check
                     <div className="md:col-span-2 lg:col-span-3 text-center py-6 px-4">
                       <p className="text-sm text-zinc-500 dark:text-zinc-400 italic">
                         No data yet for {title}.
@@ -452,6 +506,7 @@ function FinanceDashboard() {
     );
   };
 
+  // Account linking modal
   const AddAccountModal = () => {
     if (!showAccountModal) return null;
     return (
@@ -471,6 +526,33 @@ function FinanceDashboard() {
       </div>
     );
   };
+
+   // Breakdown "Coming Soon" Modal
+   const BreakdownComingSoonModal = () => {
+     if (!showBreakdownModal) return null;
+     return (
+       <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 transition-opacity duration-300">
+         <motion.div
+           initial={{ opacity: 0, scale: 0.95, y: 20 }}
+           animate={{ opacity: 1, scale: 1, y: 0 }}
+           exit={{ opacity: 0, scale: 0.95, y: 20 }}
+           transition={{ duration: 0.2 }}
+           className="bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-100 rounded-2xl w-full max-w-sm shadow-xl p-6 border border-zinc-200 dark:border-zinc-800"
+         >
+           <h2 className="text-lg font-semibold mb-3 text-center">Coming Soon</h2>
+           <p className="text-sm text-zinc-600 dark:text-zinc-300 text-center mb-5">
+             Full breakdowns available in Beta v1.2 with Plaid Integration.
+           </p>
+           <button
+             onClick={() => setShowBreakdownModal(false)}
+             className="w-full py-2 px-4 bg-blue-600 dark:bg-sky-600 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-sky-700 transition text-sm font-medium"
+           >
+             OK
+           </button>
+         </motion.div>
+       </div>
+     );
+   };
 
   // --- Main Render ---
   return (
@@ -502,8 +584,9 @@ function FinanceDashboard() {
             <div className="text-sm text-green-600 dark:text-green-500 mb-4">Dynamic change TBD</div>
             <div className="h-56 sm:h-64 w-full mb-4">
               <ResponsiveContainer width="100%" height="100%">
-                  {netWorthChartData.length > 0 ? (
-                    <LineChart data={netWorthChartData} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
+                  {/* Check if there's actual data to display */}
+                  {filteredNetWorthData.length > 1 ? (
+                    <LineChart data={filteredNetWorthData} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
                         <defs>
                             <linearGradient id="netWorthGradient" x1="0" y1="0" x2="0" y2="1">
                                 <stop offset="5%" stopColor="#16a34a" stopOpacity={0.3}/>
@@ -511,24 +594,32 @@ function FinanceDashboard() {
                             </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke="currentColor" strokeOpacity={0.1} vertical={false} />
-                         {/* Use tickFormatter for dynamic date formatting */}
                          <XAxis
-                            dataKey="name"
+                            dataKey="name" // Use original date string for indexing ticks
                             fontSize={10}
                             tick={{ fill: 'currentColor', opacity: 0.6 }}
                             tickLine={false}
                             axisLine={false}
                             dy={10}
-                            tickFormatter={(tick) => formatDateForAxis(tick, netWorthTimeRange)} // Pass range to formatter
-                            interval="preserveStartEnd" // Adjust interval as needed, e.g., 'auto' or number
+                            interval={netWorthInterval} // Use calculated interval
+                            tickFormatter={netWorthTickFormatter} // Use calculated formatter
                           />
                         <YAxis fontSize={10} tick={{ fill: 'currentColor', opacity: 0.6 }} tickLine={false} axisLine={false} dx={-5} tickFormatter={(val) => `$${val.toLocaleString()}`} domain={['auto', 'auto']}/>
-                         <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'hsl(var(--foreground))', strokeWidth: 1, strokeDasharray: '3 3' }} labelFormatter={(label) => formatDateForAxis(label, netWorthTimeRange)} />
+                        <Tooltip
+                            content={<CustomTooltip />}
+                            cursor={{ stroke: 'hsl(var(--foreground))', strokeWidth: 1, strokeDasharray: '3 3' }}
+                            labelFormatter={(label, payload) => {
+                                // Use the formattedName from the payload if available
+                                return payload?.[0]?.payload?.formattedName || label;
+                            }}
+                        />
                         <Line type="monotone" dataKey="value" stroke="#16a34a" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: '#16a34a', stroke: 'var(--background)', strokeWidth: 2 }} />
                          <Area type="monotone" dataKey="value" stroke={false} fill="url(#netWorthGradient)" />
                     </LineChart>
                   ) : (
-                    <div className="flex items-center justify-center h-full text-zinc-500 italic">Add assets/liabilities to see net worth history.</div>
+                    <div className="flex items-center justify-center h-full text-zinc-500 dark:text-zinc-400 italic">
+                        {hasAnyData ? 'Not enough data for history.' : 'Add assets or liabilities to track net worth.'}
+                    </div>
                   )}
               </ResponsiveContainer>
             </div>
@@ -621,10 +712,10 @@ function FinanceDashboard() {
              {/* Investments Portfolio - Make clickable */}
              <div
                className="bg-white dark:bg-zinc-900 rounded-2xl p-5 sm:p-6 shadow border border-zinc-200 dark:border-zinc-800 cursor-pointer hover:shadow-lg transition-shadow duration-150"
-               onClick={() => navigate('/finance')} // Navigate to /finance for now
+               onClick={() => navigate('/investments')} // Navigate to /investments
                role="button"
                tabIndex={0}
-                onKeyDown={(e) => e.key === 'Enter' && navigate('/finance')} // Accessibility
+                onKeyDown={(e) => e.key === 'Enter' && navigate('/investments')} // Accessibility
              >
                  <div className="flex items-center justify-between mb-2">
                    <h2 className="text-sm font-medium uppercase text-zinc-500 dark:text-zinc-400 tracking-wider">Investments</h2>
@@ -657,14 +748,16 @@ function FinanceDashboard() {
                 {(frequentExpenses || []).length > 0 ? (
                   (frequentExpenses || []).map((e) => (
                     <div key={e.id} className="mb-3 p-3 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50">
-                       {/* Display based on actual frequent expense data */}
                          <div className="flex items-center font-semibold text-sm mb-2 text-zinc-800 dark:text-zinc-200"> <span className="text-base mr-2">{e.icon || '❓'}</span> <span>{e.title || 'Expense'}</span> </div> <div className="text-xs text-zinc-600 dark:text-zinc-400 grid grid-cols-3 gap-2"> <div><p className="text-zinc-500 dark:text-zinc-500">This month</p><p className="font-medium text-zinc-700 dark:text-zinc-300">{e.times || 0}x</p></div> <div><p className="text-zinc-500 dark:text-zinc-500">Avg. spent</p><p className="font-medium text-zinc-700 dark:text-zinc-300">${(e.avg || 0).toFixed(2)}</p></div> <div><p className="text-zinc-500 dark:text-zinc-500">Total</p><p className="font-medium text-zinc-700 dark:text-zinc-300">${(e.total || 0).toFixed(2)}</p></div> </div>
                       </div>
                   ))
                  ) : (
                   <p className="text-xs text-zinc-500 dark:text-zinc-400 italic mb-4">No recurring expenses tracked yet.</p>
                  )}
-                 <button className="w-full mt-4 py-2 border border-zinc-300 dark:border-zinc-700 rounded-full text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors">
+                 {/* Updated Button for Coming Soon Modal */}
+                 <button
+                    onClick={() => setShowBreakdownModal(true)} // Trigger the new modal
+                    className="w-full mt-4 py-2 border border-zinc-300 dark:border-zinc-700 rounded-full text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors">
                    See full breakdown
                  </button>
              </div>
@@ -674,6 +767,7 @@ function FinanceDashboard() {
 
       {/* --- Modals --- */}
       <AddAccountModal />
+      <BreakdownComingSoonModal />
 
       <AnimatePresence>
         {isEntryModalOpen && (

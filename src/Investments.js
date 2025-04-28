@@ -131,6 +131,21 @@ const PortfolioTooltip = ({ active, payload, label, currency = '$' }) => {
   return null;
 };
 
+// Format date for XAxis based on the selected time range
+const formatDateForAxis = (dateString, range) => {
+    const date = new Date(dateString + 'T00:00:00'); // Ensure local timezone
+    if (isNaN(date.getTime())) return '';
+
+    switch (range) {
+        case '1W': return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+        case '1M': return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+        case '3M': return date.toLocaleDateString(undefined, { month: 'short' });
+        case 'YTD': return date.toLocaleDateString(undefined, { month: 'short' });
+        case 'ALL':
+        default: return date.toLocaleDateString(undefined, { month: 'short', year: '2-digit' });
+    }
+};
+
 
 // --- Main Investments Component ---
 function Investments() {
@@ -260,9 +275,9 @@ function Investments() {
                  <Wallet size={48} className="mx-auto text-zinc-400 dark:text-zinc-600 mb-4" />
                  <h2 className="text-xl font-semibold mb-2 text-zinc-800 dark:text-zinc-200">No Investments Linked Yet</h2>
                  <p className="text-zinc-600 dark:text-zinc-400 mb-6">Add your brokerage or crypto accounts to start tracking.</p>
-                 {/* Add account linking button here later */}
+                 {/* --- Updated Button Text --- */}
                  <button className="px-5 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition opacity-50 cursor-not-allowed" disabled>
-                   Link Account (Soon)
+                   Link Account (Available in Beta 1.2)
                  </button>
              </div>
         ) : (
@@ -358,8 +373,9 @@ function Investments() {
                              ) : (
                                 <p className="text-sm text-zinc-500 dark:text-zinc-400 italic text-center py-4">No accounts linked yet.</p>
                              )}
+                             {/* --- Updated Button Text --- */}
                              <button className="w-full mt-4 py-2 border-2 border-dashed border-zinc-300 dark:border-zinc-700 rounded-lg text-xs font-semibold text-zinc-500 dark:text-zinc-400 hover:border-blue-400 dark:hover:border-sky-600 hover:text-blue-600 dark:hover:text-sky-400 transition-colors opacity-50 cursor-not-allowed" disabled>
-                                Add Account (Soon)
+                                Add Account (Available in Beta 1.2)
                              </button>
                         </div>
 
@@ -391,6 +407,9 @@ const HoldingRow = React.memo(({ holding, onClick }) => {
   const changeColor = (holding.changePercentToday || 0) >= 0 ? 'text-green-600 dark:text-green-500' : 'text-red-600 dark:text-red-500';
   const TrendIcon = (holding.changePercentToday || 0) >= 0 ? TrendingUp : TrendingDown;
   const sparklineData = holding.priceHistory7d || [];
+  // Determine the stroke color for the sparkline based on changeColor
+  const sparklineStrokeColor = changeColor.includes('green') ? '#10B981' : '#EF4444'; // emerald-500 or red-500
+
 
   return (
      <button
@@ -412,12 +431,12 @@ const HoldingRow = React.memo(({ holding, onClick }) => {
              <LineChart data={sparklineData}>
                  <defs>
                      <linearGradient id={`sparklineGradient-${holding.id}`} x1="0" y1="0" x2="0" y2="1">
-                         <stop offset="5%" stopColor={changeColor === 'text-green-600 dark:text-green-500' ? '#10B981' : '#EF4444'} stopOpacity={0.1}/>
-                         <stop offset="95%" stopColor={changeColor === 'text-green-600 dark:text-green-500' ? '#10B981' : '#EF4444'} stopOpacity={0}/>
+                         <stop offset="5%" stopColor={sparklineStrokeColor} stopOpacity={0.1}/>
+                         <stop offset="95%" stopColor={sparklineStrokeColor} stopOpacity={0}/>
                      </linearGradient>
                  </defs>
-                 <Line type="monotone" dataKey="value" stroke={changeColor === 'text-green-600 dark:text-green-500' ? '#10B981' : '#EF4444'} strokeWidth={1.5} dot={false} />
-                 {/* Optional Area under sparkline */}
+                 <Line type="monotone" dataKey="value" stroke={sparklineStrokeColor} strokeWidth={1.5} dot={false} />
+                 {/* Optional Area under sparkline - uncomment if desired */}
                  {/* <Area type="monotone" dataKey="value" stroke={false} fill={`url(#sparklineGradient-${holding.id})`} /> */}
              </LineChart>
            </ResponsiveContainer>
@@ -438,6 +457,8 @@ const HoldingRow = React.memo(({ holding, onClick }) => {
 const HoldingDetailModal = ({ holding, onClose }) => {
   const changeColor = (holding.changePercentToday || 0) >= 0 ? 'text-green-600 dark:text-green-500' : 'text-red-600 dark:text-red-500';
   const chartData = holding.priceHistory7d || []; // Use 7d history for the modal chart
+  // Determine the stroke color for the modal chart
+  const modalChartStrokeColor = changeColor.includes('green') ? '#10B981' : '#EF4444'; // emerald-500 or red-500
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 transition-opacity duration-300">
@@ -486,8 +507,8 @@ const HoldingDetailModal = ({ holding, onClose }) => {
                      <AreaChart data={chartData} margin={{ top: 5, right: 0, left: 0, bottom: 0 }}>
                          <defs>
                              <linearGradient id={`modalGradient-${holding.id}`} x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor={changeColor === 'text-green-600 dark:text-green-500' ? '#10B981' : '#EF4444'} stopOpacity={0.3}/>
-                                <stop offset="95%" stopColor={changeColor === 'text-green-600 dark:text-green-500' ? '#10B981' : '#EF4444'} stopOpacity={0}/>
+                                <stop offset="5%" stopColor={modalChartStrokeColor} stopOpacity={0.3}/>
+                                <stop offset="95%" stopColor={modalChartStrokeColor} stopOpacity={0}/>
                              </linearGradient>
                          </defs>
                          <Tooltip
@@ -497,7 +518,7 @@ const HoldingDetailModal = ({ holding, onClose }) => {
                          <Area
                            type="monotone"
                            dataKey="value"
-                           stroke={changeColor === 'text-green-600 dark:text-green-500' ? '#10B981' : '#EF4444'}
+                           stroke={modalChartStrokeColor}
                            strokeWidth={2}
                            fill={`url(#modalGradient-${holding.id})`}
                            dot={false}
