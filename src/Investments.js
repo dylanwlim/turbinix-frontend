@@ -277,7 +277,7 @@ function Investments() {
                  <p className="text-zinc-600 dark:text-zinc-400 mb-6">Add your brokerage or crypto accounts to start tracking.</p>
                  {/* --- Updated Button Text --- */}
                  <button className="px-5 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition opacity-50 cursor-not-allowed" disabled>
-                   Link Account (Available in Beta 1.2)
+                   Link Account (Available in future update)
                  </button>
              </div>
         ) : (

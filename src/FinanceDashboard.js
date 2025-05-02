@@ -1,6 +1,7 @@
 // src/FinanceDashboard.js
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { usePlaidLink } from 'react-plaid-link'; // <<< Import Plaid Link
 import {
   ResponsiveContainer,
   LineChart,
@@ -17,6 +18,7 @@ import EntryFormModal from './EntryFormModal';
 
 // --- Constants & Helpers ---
 const USER_DATA_KEY = 'userData';
+const API_URL = process.env.REACT_APP_API_URL || 'https://turbinix-backend.onrender.com'; // Use backend URL
 
 // Tooltip Component
 const CustomTooltip = ({ active, payload, label, currency = '$' }) => {
@@ -185,13 +187,78 @@ function FinanceDashboard() {
 
   const [username, setUsername] = useState('');
 
-  // --- Modal States ---
-  const [showAccountModal, setShowAccountModal] = useState(false);
+  // --- Plaid Link State ---
+  const [linkToken, setLinkToken] = useState(null);
+  const [isPlaidOpen, setIsPlaidOpen] = useState(false); // <<< Track Plaid modal state
+
+  // --- Modal States (Entry Form, Breakdown) ---
   const [isEntryModalOpen, setIsEntryModalOpen] = useState(false);
   const [entryModalMode, setEntryModalMode] = useState('add');
   const [currentEntryCategory, setCurrentEntryCategory] = useState({ type: '', name: '' });
   const [currentItemToEdit, setCurrentItemToEdit] = useState(null);
   const [showBreakdownModal, setShowBreakdownModal] = useState(false); // State for "Coming Soon" modal
+
+
+  // --- Fetch Link Token ---
+  const createLinkToken = useCallback(async () => {
+    // Fetch the link_token
+    try {
+      const response = await fetch(`${API_URL}/api/create_link_token`, { method: 'POST' });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create link token');
+      }
+      console.log("Link token created:", data.link_token);
+      setLinkToken(data.link_token);
+    } catch (error) {
+      console.error("Error creating link token:", error);
+      // Handle error appropriately, maybe show a message to the user
+    }
+  }, []);
+
+  // --- Configure Plaid Link ---
+  const { open, ready } = usePlaidLink({
+    token: linkToken,
+    onSuccess: (public_token, metadata) => {
+      console.log('Plaid Link Success:', public_token, metadata);
+      // Here you would typically send the public_token to your backend
+      // to exchange it for an access_token.
+      // Example: sendTokenToBackend(public_token);
+      setIsPlaidOpen(false); // Close the security text
+    },
+    onExit: (err, metadata) => {
+      console.log('Plaid Link exited:', err, metadata);
+      setIsPlaidOpen(false); // Close the security text
+      // Optionally refetch token if needed based on error/metadata
+      if (err?.error_code === 'INVALID_LINK_TOKEN') {
+          setLinkToken(null); // Reset token if invalid
+          createLinkToken(); // Attempt to fetch a new one
+      }
+    },
+    onOpen: () => {
+        setIsPlaidOpen(true); // Show the security text
+    },
+    // Add other event handlers as needed (onEvent, etc.)
+  });
+
+
+   // --- Trigger Plaid Link Open ---
+   const handleLinkAccountClick = useCallback(async () => {
+      // Ensure token exists before opening
+      if (!linkToken) {
+          await createLinkToken(); // Fetch token if not available
+      }
+      // The useEffect below will open Plaid once linkToken is set and ready is true
+  }, [linkToken, createLinkToken]);
+
+   // Effect to open Plaid Link when token is ready and button is clicked
+   // (This handles the case where token fetch is async)
+   useEffect(() => {
+        if (linkToken && ready) {
+            open(); // Open Plaid Link automatically once token and ready state are true
+        }
+   }, [linkToken, ready, open]);
+
 
   // --- Persist Data ---
   useEffect(() => {
@@ -389,7 +456,7 @@ function FinanceDashboard() {
     });
   }, []);
 
-  // --- Modal Control ---
+  // --- Modal Control (Entry Form) ---
   const openEntryModal = useCallback((mode, categoryType, categoryName, item = null) => {
     setEntryModalMode(mode);
     setCurrentEntryCategory({ type: categoryType, name: categoryName });
@@ -506,26 +573,6 @@ function FinanceDashboard() {
     );
   };
 
-  // Account linking modal
-  const AddAccountModal = () => {
-    if (!showAccountModal) return null;
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white dark:bg-zinc-800 p-6 rounded-xl shadow-lg max-w-md w-full">
-              <h2 className="text-lg font-semibold mb-4">Link External Account</h2>
-              <p className="text-sm text-zinc-600 dark:text-zinc-300 mb-4">
-                  Account linking (e.g., via Plaid) is coming soon. For now, please add accounts manually using the '+' buttons in each section.
-              </p>
-              <button
-                  onClick={() => setShowAccountModal(false)}
-                  className="w-full py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-              >
-                  Got it
-              </button>
-          </div>
-      </div>
-    );
-  };
 
    // Breakdown "Coming Soon" Modal
    const BreakdownComingSoonModal = () => {
@@ -563,15 +610,26 @@ function FinanceDashboard() {
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-zinc-800 dark:text-zinc-100">
             Hello, {username.charAt(0).toUpperCase() + username.slice(1)}
           </h1>
-          <button
-            onClick={() => setShowAccountModal(true)}
-            className="flex items-center gap-1 rounded-full border border-zinc-300 dark:border-zinc-700 px-4 py-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors shadow-sm"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-            Account {/* Button kept for future Plaid integration */}
-          </button>
+          {/* --- Updated Account Button and Plaid Security Text --- */}
+          <div className="flex flex-col items-end">
+             <button
+               onClick={handleLinkAccountClick}
+               disabled={!ready && !linkToken} // Disable button briefly while fetching token first time
+               className={`flex items-center gap-1 rounded-full border border-zinc-300 dark:border-zinc-700 px-4 py-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-sky-500 focus:ring-offset-1 dark:focus:ring-offset-zinc-950 ${(!ready && !linkToken) ? 'opacity-70 cursor-wait' : ''}`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+                Account
+              </button>
+              {/* Conditional Plaid Security Text */}
+              {isPlaidOpen && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 animate-fade-in">
+                      <i>Bank-grade security powered by Plaid</i>
+                  </p>
+               )}
+           </div>
+          {/* --- End Updated Account Button --- */}
         </div>
 
         {/* Main Grid */}
@@ -766,7 +824,6 @@ function FinanceDashboard() {
       </div>
 
       {/* --- Modals --- */}
-      <AddAccountModal />
       <BreakdownComingSoonModal />
 
       <AnimatePresence>

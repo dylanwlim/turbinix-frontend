@@ -5,7 +5,7 @@ import {
     LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, Sector
 } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Edit2, Trash2, TrendingUp, TrendingDown, AlertTriangle, Info, Target, DollarSign, Repeat, List, BarChart2, Percent } from 'lucide-react';
+import { Plus, Edit2, Trash2, TrendingUp, TrendingDown, AlertTriangle, Info, Target, DollarSign, Repeat, List, BarChart2, Percent, Lightbulb } from 'lucide-react'; // Added Lightbulb
 import TransactionIncomeModal from './TransactionIncomeModal'; // Assume this exists and works
 
 // --- Constants ---
@@ -334,93 +334,96 @@ function BudgetingTool() {
        case "Recurring": return <RecurringTab recurringData={budgetData.recurring} onAddEdit={() => alert("Add/Edit Recurring Item - Modal Needed")} onDelete={() => alert("Delete Recurring Item - Not Implemented")} />;
        case "Transactions": return <TransactionsTab transactions={budgetData.transactions} income={budgetData.income} onEdit={handleOpenModal} onDelete={handleDeleteItem} />;
        case "Reports": return <ReportsTab monthlyHistory={budgetData.monthlySummaryHistory} />;
-       default: return <div className="p-6 text-center text-zinc-500">Select a tab</div>;
+       default: return (
+             <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 p-8 text-center">
+                <Lightbulb className="mx-auto text-yellow-400 mb-3 w-8 h-8" />
+                 <p className="text-sm text-zinc-600 dark:text-zinc-400 opacity-80 italic">
+                     💡 Budget insights coming soon
+                 </p>
+            </div>
+        );
      }
    };
 
 
   // --- Main Component Render ---
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-white px-4 sm:px-6 pt-10 pb-20 font-sans">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
-          {/* *** Updated Header *** */}
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-zinc-800 dark:text-zinc-100">Budget Overview</h1>
-          <div className="flex space-x-3">
-             {/* *** Updated Buttons *** */}
-            <button
-              onClick={() => handleOpenModal('transaction')}
-               className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 rounded-lg text-sm font-semibold transition-all duration-150 shadow-md hover:shadow-lg hover:shadow-red-700/30 dark:shadow-red-500/30 text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 dark:focus:ring-offset-zinc-950"
-            >
-              <Plus size={16} /> Expense
-            </button>
-            <button
-              onClick={() => handleOpenModal('income')}
-              className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 rounded-lg text-sm font-semibold transition-all duration-150 shadow-md hover:shadow-lg hover:shadow-green-700/30 dark:shadow-green-500/30 text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 dark:focus:ring-offset-zinc-950"
-            >
-              <Plus size={16} /> Income
-            </button>
-          </div>
+    // Added relative positioning and glow/blur effect container
+    <div className="relative min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-white px-4 sm:px-6 pt-10 pb-20 font-sans transition-colors duration-300">
+        {/* Background Effects */}
+        <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
+            <div className="absolute -inset-80 top-[-20%] left-[50%] -translate-x-1/2 -translate-y-1/2 opacity-15 dark:opacity-25 pointer-events-none">
+                <div className="absolute top-1/2 left-1/2 w-[800px] h-[800px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-radial from-blue-400/70 dark:from-sky-600/50 via-transparent to-transparent blur-3xl animate-pulse-glow"></div>
+            </div>
         </div>
 
-         {/* *** Updated Tabs *** */}
-        <div className="mb-8 border-b border-zinc-200 dark:border-zinc-800 relative">
-            <nav className="-mb-px flex space-x-6 overflow-x-auto pb-px" aria-label="Tabs">
-                 {TABS.map((tab) => (
-                     <button
-                         key={tab}
-                         onClick={() => setActiveTab(tab)}
-                         onMouseEnter={() => setHoveredTab(tab)}
-                         onMouseLeave={() => setHoveredTab(null)}
-                         className={`relative whitespace-nowrap pb-3 px-1 border-b-2 text-sm font-medium transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-blue-300 dark:focus:ring-sky-700 dark:focus:ring-offset-zinc-950 rounded-t-md ${
-                             activeTab === tab
-                                 ? 'border-blue-600 dark:border-sky-500 text-blue-600 dark:text-sky-400'
-                                 : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-white hover:border-zinc-300 dark:hover:border-zinc-600'
-                         }`}
-                         aria-current={activeTab === tab ? 'page' : undefined}
-                     >
-                         {tab}
-                          {/* Subtle glow/indicator effect for active/hover */}
-                          {activeTab === tab && (
-                              <motion.div
-                                  className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-gradient-to-r from-blue-500 to-sky-500 rounded-full shadow-[0_0_8px_0px] shadow-sky-500/50 dark:shadow-sky-400/40" // Adjusted glow shadow
-                                  layoutId="activeBudgetTabIndicator"
-                                  transition={{ type: 'spring', stiffness: 400, damping: 35 }}
-                              />
-                          )}
-                         {/* Hover indicator (optional, more subtle) */}
-                         {/* {hoveredTab === tab && activeTab !== tab && (
-                              <motion.div
-                                  className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-zinc-300 dark:bg-zinc-700 rounded-full"
-                                  layoutId="hoverBudgetTabIndicator"
-                                  initial={{ opacity: 0 }}
-                                  animate={{ opacity: 1 }}
-                                  exit={{ opacity: 0 }}
-                                  transition={{ duration: 0.15 }}
-                              />
-                          )} */}
-                     </button>
-                 ))}
-            </nav>
-         </div>
+        {/* Content */}
+        <div className="max-w-7xl mx-auto relative z-10">
+             {/* Header */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+                 <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-zinc-800 dark:text-zinc-100">Budget Center</h1>
+                 <div className="flex space-x-3">
+                      {/* Expense Button - Modernized */}
+                      <button
+                        onClick={() => handleOpenModal('transaction')}
+                         className="flex items-center gap-1.5 px-4 py-1.5 bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 rounded-full text-sm font-semibold transition-all duration-150 shadow-md hover:shadow-lg hover:shadow-red-700/30 dark:shadow-red-500/30 text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 dark:focus:ring-offset-zinc-950 border border-white/10 dark:border-black/20"
+                       >
+                        <Plus size={16} /> Expense
+                      </button>
+                      {/* Income Button - Modernized */}
+                      <button
+                        onClick={() => handleOpenModal('income')}
+                        className="flex items-center gap-1.5 px-4 py-1.5 bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 rounded-full text-sm font-semibold transition-all duration-150 shadow-md hover:shadow-lg hover:shadow-green-700/30 dark:shadow-green-500/30 text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 dark:focus:ring-offset-zinc-950 border border-white/10 dark:border-black/20"
+                      >
+                        <Plus size={16} /> Income
+                      </button>
+                 </div>
+            </div>
 
+            {/* Tabs - Retained glow effect, ensured focus styles */}
+            <div className="mb-8 border-b border-zinc-200 dark:border-zinc-800 relative">
+                <nav className="-mb-px flex space-x-6 overflow-x-auto pb-px" aria-label="Tabs">
+                     {TABS.map((tab) => (
+                         <button
+                             key={tab}
+                             onClick={() => setActiveTab(tab)}
+                             onMouseEnter={() => setHoveredTab(tab)}
+                             onMouseLeave={() => setHoveredTab(null)}
+                              className={`relative whitespace-nowrap pb-3 px-1 border-b-2 text-sm font-medium transition-colors duration-150 focus:outline-none focus:ring-1 focus:ring-offset-2 dark:focus:ring-offset-zinc-950 focus:ring-blue-500 dark:focus:ring-sky-500 rounded-t-md ${
+                                activeTab === tab
+                                     ? 'border-blue-600 dark:border-sky-500 text-blue-600 dark:text-sky-400'
+                                     : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-white hover:border-zinc-300 dark:hover:border-zinc-600'
+                             }`}
+                             aria-current={activeTab === tab ? 'page' : undefined}
+                         >
+                             {tab}
+                             {activeTab === tab && (
+                                  <motion.div
+                                      className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-gradient-to-r from-blue-500 to-sky-500 rounded-full shadow-[0_0_8px_0px] shadow-sky-500/50 dark:shadow-sky-400/40"
+                                      layoutId="activeBudgetTabIndicator"
+                                      transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+                                  />
+                              )}
+                         </button>
+                     ))}
+                </nav>
+             </div>
 
-        {/* Tab Content Area */}
-        <div>
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2 }}
-            >
-              {renderTabContent()}
-            </motion.div>
-          </AnimatePresence>
+            {/* Tab Content Area */}
+            <div>
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeTab}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  {renderTabContent()}
+                </motion.div>
+              </AnimatePresence>
+            </div>
         </div>
-      </div>
 
        {/* Modal Rendering */}
        <AnimatePresence>
@@ -433,9 +436,6 @@ function BudgetingTool() {
                     initialData={editingItem} // Pass item data for editing
                 />
                 // Add RecurringItemModal rendering here later
-                // {isModalOpen && (modalType === 'recurringExpense' || modalType === 'recurringIncome') && (
-                //    <RecurringItemModal isOpen={isModalOpen} onClose={handleCloseModal} ... />
-                // )}
             )}
        </AnimatePresence>
     </div>
@@ -445,6 +445,7 @@ function BudgetingTool() {
 // ========== TAB COMPONENTS ==========
 
 // --- Overview Tab ---
+// (Styling polished within the component definitions below)
 const OverviewTab = React.memo(({ budgetData, savingsRecommendation, hasDebt }) => {
   const { budgetGoal } = budgetData;
     const { currentMonthStart, currentMonthEnd } = useMemo(() => {
@@ -495,15 +496,15 @@ const OverviewTab = React.memo(({ budgetData, savingsRecommendation, hasDebt }) 
   return (
     <div className="space-y-8">
         {/* Top Row: Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
              <StatCard title="Earned This Month" value={formatCurrency(totalIncomeMonth)} color="text-green-500 dark:text-green-400" />
              <StatCard title="Spent This Month" value={formatCurrency(totalExpensesMonth)} color="text-red-500 dark:text-red-400" />
              <StatCard title="Saved This Month" value={formatCurrency(totalSavingsMonth)} color={totalSavingsMonth >= 0 ? "text-blue-600 dark:text-sky-500" : "text-red-500 dark:text-red-400"} />
              <StatCard title="Budget Remaining" value={formatCurrency(remainingBudget)} color={remainingBudget >= 0 ? "text-zinc-700 dark:text-zinc-300" : "text-red-500 dark:text-red-400"} />
          </div>
 
-      {/* Mid Row: Chart */}
-      <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 p-5 sm:p-6">
+      {/* Mid Row: Chart - Use rounded-2xl and consistent padding */}
+       <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 p-5 sm:p-6">
         <h2 className="text-lg font-semibold mb-1 text-zinc-800 dark:text-zinc-100">Spending vs Budget</h2>
          <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">Last 6 months trend</p>
         <ResponsiveContainer width="100%" height={250}>
@@ -522,12 +523,20 @@ const OverviewTab = React.memo(({ budgetData, savingsRecommendation, hasDebt }) 
                     <CartesianGrid strokeDasharray="3 3" stroke="currentColor" strokeOpacity={0.1} vertical={false} />
                     <XAxis dataKey="name" tick={{ fill: 'currentColor', fontSize: 10, opacity: 0.6 }} tickLine={false} axisLine={false} dy={10} />
                     <YAxis tick={{ fill: 'currentColor', fontSize: 10, opacity: 0.6 }} tickLine={false} axisLine={false} dx={-5} tickFormatter={(val) => `$${(val/1000).toFixed(0)}k`} domain={['auto', 'auto']}/>
-                    <RechartsTooltip
-                        contentStyle={{ backgroundColor: 'rgba(31, 41, 55, 0.8)', border: '1px solid #4B5563', borderRadius: '8px', fontSize: '12px' }}
-                        labelStyle={{ color: '#D1D5DB', fontWeight: '600' }}
-                        itemStyle={{ color: '#E5E7EB' }}
-                        formatter={(value, name) => [formatCurrency(value), name]}
-                    />
+                     <RechartsTooltip
+                         contentStyle={{
+                             backgroundColor: 'rgba(30, 41, 59, 0.85)', // Slightly less transparent dark bg
+                             border: '1px solid rgba(255, 255, 255, 0.1)', // Subtle border
+                             borderRadius: '0.75rem', // Rounded-xl
+                             fontSize: '12px',
+                             boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
+                             backdropFilter: 'blur(4px)'
+                         }}
+                         labelStyle={{ color: '#E5E7EB', fontWeight: '600', marginBottom: '4px', display: 'block' }} // Adjusted label style
+                         itemStyle={{ color: '#F3F4F6' }} // Lighter item text
+                         formatter={(value, name) => [formatCurrency(value), name]}
+                         cursor={{ stroke: 'hsl(var(--primary))', strokeWidth: 1, strokeDasharray: '3 3', opacity: 0.6 }} // Use primary color for cursor
+                     />
                     <Legend verticalAlign="top" height={30} iconSize={10} wrapperStyle={{ fontSize: '12px', color: 'currentColor', opacity: 0.8 }} />
                     <Area type="monotone" dataKey="Expenses" stroke="#6366F1" fill="url(#expensesGradient)" strokeWidth={2} dot={false} activeDot={{ r: 4, strokeWidth: 1, fill: '#fff', stroke: '#6366F1' }} name="Monthly Expenses" />
                     <Area type="monotone" dataKey="Budget" stroke="#9CA3AF" fill="url(#budgetGradient)" strokeWidth={2} strokeDasharray="5 5" dot={false} name="Monthly Budget" />
@@ -538,7 +547,7 @@ const OverviewTab = React.memo(({ budgetData, savingsRecommendation, hasDebt }) 
         </ResponsiveContainer>
       </div>
 
-        {/* Bottom Row: Recommendations */}
+        {/* Bottom Row: Recommendations - Updated card styling */}
          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
              {/* Savings Recommendation */}
              {savingsRecommendation && (
@@ -558,9 +567,9 @@ const OverviewTab = React.memo(({ budgetData, savingsRecommendation, hasDebt }) 
                      color="orange"
                  >
                      <p className="text-sm text-zinc-700 dark:text-zinc-300 mb-2">Consider these methods to tackle debt:</p>
-                     <ul className="list-disc list-inside text-sm space-y-1">
-                         <li><strong className="font-medium">Avalanche:</strong> Prioritize paying off loans with the highest interest rates first to save money over time.</li>
-                         <li><strong className="font-medium">Snowball:</strong> Pay off the smallest loan balances first for quick wins and motivation.</li>
+                      <ul className="list-disc list-inside text-sm space-y-1.5 text-zinc-600 dark:text-zinc-400"> {/* Slightly increased spacing */}
+                         <li><strong className="font-medium text-zinc-800 dark:text-zinc-200">Avalanche:</strong> Prioritize paying off loans with the highest interest rates first to save money over time.</li>
+                         <li><strong className="font-medium text-zinc-800 dark:text-zinc-200">Snowball:</strong> Pay off the smallest loan balances first for quick wins and motivation.</li>
                      </ul>
                  </RecommendationCard>
              )}
@@ -578,30 +587,35 @@ const OverviewTab = React.memo(({ budgetData, savingsRecommendation, hasDebt }) 
   );
 });
 
+// Updated StatCard styling
 const StatCard = ({ title, value, color }) => (
-  <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl shadow border border-zinc-200 dark:border-zinc-800">
-    <h4 className="text-xs sm:text-sm font-medium text-zinc-500 dark:text-zinc-400 uppercase mb-1 truncate">{title}</h4>
+  <div className="bg-white dark:bg-zinc-900 p-4 sm:p-5 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 transition hover:shadow-xl dark:hover:border-zinc-700">
+    <h4 className="text-xs sm:text-sm font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-1 truncate">{title}</h4>
     <p className={`text-xl sm:text-2xl font-bold ${color || 'text-zinc-900 dark:text-white'}`}>{value}</p>
   </div>
 );
 
+// Updated RecommendationCard styling
 const RecommendationCard = ({ icon, title, color = 'yellow', children }) => {
   const colorClasses = {
-      yellow: 'border-yellow-400/40 dark:border-yellow-500/40 text-yellow-600 dark:text-yellow-400 bg-yellow-500/10',
-      orange: 'border-orange-400/40 dark:border-orange-500/40 text-orange-600 dark:text-orange-400 bg-orange-500/10',
-      blue: 'border-blue-400/40 dark:border-sky-500/40 text-blue-600 dark:text-sky-400 bg-blue-500/10 dark:bg-sky-500/10',
+      yellow: 'border-yellow-400/40 dark:border-yellow-500/40 text-yellow-700 dark:text-yellow-400 bg-yellow-500/5 dark:bg-yellow-900/10',
+      orange: 'border-orange-400/40 dark:border-orange-500/40 text-orange-700 dark:text-orange-400 bg-orange-500/5 dark:bg-orange-900/10',
+      blue: 'border-blue-400/40 dark:border-sky-500/40 text-blue-700 dark:text-sky-400 bg-blue-500/5 dark:bg-sky-900/10',
   };
-  const selectedColor = colorClasses[color] || colorClasses.yellow;
+   // Extract base bg, border color, text color for icon wrapper and icon itself
+   const selectedColorParts = colorClasses[color] || colorClasses.yellow;
+   const [borderColorClass, , textColorClass, bgColorClass] = selectedColorParts.split(' ');
+
 
   return (
-    <div className={`bg-white dark:bg-zinc-900 rounded-2xl shadow-lg p-5 border ${selectedColor.split(' ')[0]}`}>
+    <div className={`bg-white dark:bg-zinc-900 rounded-2xl shadow-lg p-5 border ${borderColorClass} transition hover:shadow-xl dark:hover:border-zinc-700`}>
        <div className="flex items-start space-x-3">
-           <div className={`p-1.5 rounded-full ${selectedColor.split(' ')[3]}`}>
-              {React.cloneElement(icon, { size: 20, className: selectedColor.split(' ')[2] + ' ' + selectedColor.split(' ')[1] })}
+           <div className={`p-1.5 rounded-full ${bgColorClass}`}>
+             {React.cloneElement(icon, { size: 20, className: textColorClass })}
            </div>
            <div>
              <h3 className="text-base font-semibold mb-1 text-zinc-800 dark:text-zinc-100">{title}</h3>
-             <div className="text-zinc-600 dark:text-zinc-300">{children}</div>
+             <div className="text-sm text-zinc-600 dark:text-zinc-300">{children}</div>
            </div>
        </div>
     </div>
@@ -610,6 +624,7 @@ const RecommendationCard = ({ icon, title, color = 'yellow', children }) => {
 
 
 // --- Breakdown & Budget Tab ---
+// (Polished inputs, buttons, chart styling)
 const BreakdownTab = React.memo(({ budgetData, categoryBreakdownData, isEditingBudget, setIsEditingBudget, tempBudgetGoal, setTempBudgetGoal, handleBudgetGoalSave }) => {
   const [activePieIndex, setActivePieIndex] = useState(null);
 
@@ -636,19 +651,19 @@ const BreakdownTab = React.memo(({ budgetData, categoryBreakdownData, isEditingB
 
         return (
           <g>
-            <text x={cx} y={cy} dy={8} textAnchor="middle" fill={fill} className="text-sm font-semibold dark:fill-white fill-zinc-800">
+            <text x={cx} y={cy} dy={8} textAnchor="middle" fill={fill} className="text-base font-semibold dark:fill-white fill-zinc-800">
               {payload.name}
             </text>
              {/* Increased outer radius on hover */}
              <Sector
                 cx={cx} cy={cy} innerRadius={innerRadius} outerRadius={outerRadius + 4}
-                startAngle={startAngle} endAngle={endAngle} fill={fill} />
-            <path d={`M${sx},${sy}L${mx},${my}L${ex},${ey}`} stroke={fill} fill="none" />
-            <circle cx={ex} cy={ey} r={2} fill={fill} stroke="none" />
-             <text x={ex + (cos >= 0 ? 1 : -1) * 6} y={ey} textAnchor={textAnchor} fill="currentColor" className="text-xs dark:fill-zinc-300 fill-zinc-600">
+                startAngle={startAngle} endAngle={endAngle} fill={fill} stroke="#fff" strokeWidth={1} className="dark:stroke-zinc-900"/>
+            <path d={`M${sx},${sy}L${mx},${my}L${ex},${ey}`} stroke={fill} fill="none" strokeWidth={1.5} />
+             <circle cx={ex} cy={ey} r={3} fill={fill} stroke="none" />
+             <text x={ex + (cos >= 0 ? 1 : -1) * 6} y={ey} textAnchor={textAnchor} fill="currentColor" className="text-sm font-medium dark:fill-zinc-100 fill-zinc-700">
                  {`${formatCurrency(value)}`}
              </text>
-             <text x={ex + (cos >= 0 ? 1 : -1) * 6} y={ey} dy={12} textAnchor={textAnchor} fill="currentColor" className="text-xs dark:fill-zinc-400 fill-zinc-500">
+             <text x={ex + (cos >= 0 ? 1 : -1) * 6} y={ey} dy={14} textAnchor={textAnchor} fill="currentColor" className="text-xs dark:fill-zinc-400 fill-zinc-500">
                 {`(${(percent * 100).toFixed(1)}%)`}
             </text>
           </g>
@@ -658,12 +673,12 @@ const BreakdownTab = React.memo(({ budgetData, categoryBreakdownData, isEditingB
   return (
      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Budget Goal Setting */}
-         <div className="md:col-span-1 space-y-4">
-             <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 p-5 sm:p-6">
+         <div className="md:col-span-1 space-y-6">
+             <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 p-5 sm:p-6 transition hover:shadow-xl dark:hover:border-zinc-700">
                  <div className="flex justify-between items-center mb-3">
                      <h3 className="text-lg font-semibold text-zinc-800 dark:text-zinc-100">Monthly Budget</h3>
                      {!isEditingBudget && (
-                         <button onClick={() => setIsEditingBudget(true)} className="text-xs font-medium text-blue-600 dark:text-sky-500 hover:underline">
+                         <button onClick={() => setIsEditingBudget(true)} className="text-xs font-medium text-blue-600 dark:text-sky-500 hover:underline focus:outline-none focus:ring-1 focus:ring-blue-500 rounded">
                              Edit
                          </button>
                      )}
@@ -677,28 +692,31 @@ const BreakdownTab = React.memo(({ budgetData, categoryBreakdownData, isEditingB
                              onChange={(e) => setTempBudgetGoal(e.target.value)}
                              onBlur={handleBudgetGoalSave} // Save on blur
                              onKeyDown={(e) => e.key === 'Enter' && handleBudgetGoalSave()}
-                             className="flex-grow px-2 py-1 rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-xl font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+                              className="flex-grow px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xl font-bold focus:ring-2 focus:ring-blue-500 dark:focus:ring-sky-500 focus:border-transparent outline-none transition duration-150 ease-in-out" // Standardized input
                              autoFocus
                              min="0"
                              step="10"
                          />
-                          <button onClick={handleBudgetGoalSave} className="text-xs font-medium bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 transition">Save</button>
-                          <button onClick={() => { setIsEditingBudget(false); setTempBudgetGoal(budgetData.budgetGoal); }} className="text-xs font-medium text-zinc-500 hover:text-zinc-700">Cancel</button>
+                          {/* Standardized buttons */}
+                          <button onClick={handleBudgetGoalSave} className="px-3 py-1 rounded-md text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">Save</button>
+                          <button onClick={() => { setIsEditingBudget(false); setTempBudgetGoal(budgetData.budgetGoal); }} className="px-3 py-1 rounded-md text-xs font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zinc-500">Cancel</button>
                      </div>
                  ) : (
                      <p className="text-3xl font-bold text-zinc-900 dark:text-white">{formatCurrency(budgetData.budgetGoal, 0)}</p>
                  )}
                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">Your target spending limit per month.</p>
              </div>
-              {/* Category Budgets Placeholder */}
-              <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 p-5 sm:p-6 opacity-60">
+              {/* Category Budgets Placeholder - styled as card */}
+              <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 p-5 sm:p-6 opacity-70 transition hover:shadow-xl dark:hover:border-zinc-700">
                  <h3 className="text-lg font-semibold mb-3 text-zinc-800 dark:text-zinc-100">Category Budgets</h3>
-                  <p className="text-sm text-zinc-500 dark:text-zinc-400 italic text-center py-4">Set spending limits per category (coming soon).</p>
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400 italic text-center py-4">
+                     Set spending limits per category (coming soon).
+                  </p>
               </div>
          </div>
 
         {/* Pie Chart Breakdown */}
-        <div className="md:col-span-2 bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 p-5 sm:p-6">
+        <div className="md:col-span-2 bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 p-5 sm:p-6 transition hover:shadow-xl dark:hover:border-zinc-700">
             <h3 className="text-lg font-semibold mb-4 text-zinc-800 dark:text-zinc-100">Expense Breakdown ({new Date().toLocaleString('default', { month: 'long' })})</h3>
             {categoryBreakdownData.length > 0 ? (
                  <ResponsiveContainer width="100%" height={300}>
@@ -709,23 +727,27 @@ const BreakdownTab = React.memo(({ budgetData, categoryBreakdownData, isEditingB
                              data={categoryBreakdownData}
                              cx="50%"
                              cy="50%"
-                             innerRadius={60}
-                             outerRadius={90}
+                             innerRadius={70} // Slightly larger inner radius
+                             outerRadius={100} // Slightly larger outer radius
                              fill="#8884d8"
                              dataKey="value"
                              onMouseEnter={onPieEnter}
                              onMouseLeave={onPieLeave}
                              paddingAngle={2}
+                             stroke="none" // Remove default stroke between segments
                          >
                              {categoryBreakdownData.map((entry, index) => (
-                                 <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
+                                 <Cell key={`cell-${index}`} fill={entry.color} stroke="#fff" strokeWidth={1} className="dark:stroke-zinc-900" /> // Add white/dark border between cells
                              ))}
                          </Pie>
                          <RechartsTooltip content={<div className="hidden"></div>} /> {/* Hide default tooltip, use activeShape */}
                      </PieChart>
                  </ResponsiveContainer>
              ) : (
-                 <div className="flex items-center justify-center h-[300px] text-zinc-500 italic">No expenses this month to break down.</div>
+                 <div className="flex flex-col items-center justify-center h-[300px] text-zinc-500 italic">
+                    <BarChart2 size={32} className="mb-2 opacity-50" />
+                    No expenses this month to break down.
+                </div>
              )}
         </div>
      </div>
@@ -733,27 +755,29 @@ const BreakdownTab = React.memo(({ budgetData, categoryBreakdownData, isEditingB
 });
 
 // --- Recurring Tab ---
+// (Polished list items, buttons)
 const RecurringTab = React.memo(({ recurringData, onAddEdit, onDelete }) => {
   const { income = [], expenses = [] } = recurringData || {};
 
   const renderList = (items, type) => (
      <ul className="space-y-3">
        {items.length > 0 ? items.map(item => (
-         <li key={item.id} className="flex items-center justify-between p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-zinc-200 dark:border-zinc-700">
-           <div>
-             <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200">{item.title}</p>
+          <li key={item.id} className="flex items-center justify-between p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition duration-150"> {/* Use rounded-xl */}
+           <div className="flex-grow min-w-0 mr-3">
+             <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate">{item.title}</p>
              <p className="text-xs text-zinc-500 dark:text-zinc-400">{item.frequency} &middot; Next: TBD</p> {/* Calculate next date later */}
            </div>
-           <div className="flex items-center gap-3">
+           <div className="flex items-center gap-3 flex-shrink-0">
               <span className={`text-sm font-semibold ${type === 'income' ? 'text-green-600 dark:text-green-500' : 'text-red-600 dark:text-red-400'}`}>
                 {type === 'income' ? '+' : '-'}{formatCurrency(Math.abs(item.amount))}
               </span>
-             <button onClick={() => onAddEdit(type, item)} className="p-1 text-zinc-500 hover:text-blue-600 dark:hover:text-sky-500 transition-colors"><Edit2 size={14} /></button>
-             <button onClick={() => onDelete(item.id, type)} className="p-1 text-zinc-500 hover:text-red-600 transition-colors"><Trash2 size={14} /></button>
+              {/* Polished Edit/Delete buttons */}
+              <button onClick={() => onAddEdit(type, item)} className="p-1.5 text-zinc-500 hover:text-blue-600 dark:hover:text-sky-500 transition-colors rounded-full hover:bg-zinc-200 dark:hover:bg-zinc-700 focus:outline-none focus:ring-1 focus:ring-blue-500"><Edit2 size={14} /></button>
+              <button onClick={() => onDelete(item.id, type)} className="p-1.5 text-zinc-500 hover:text-red-600 transition-colors rounded-full hover:bg-red-100 dark:hover:bg-red-900/30 focus:outline-none focus:ring-1 focus:ring-red-500"><Trash2 size={14} /></button>
            </div>
          </li>
        )) : (
-         <p className="text-sm text-zinc-500 dark:text-zinc-400 italic text-center py-4">No recurring {type} items.</p>
+         <p className="text-sm text-zinc-500 dark:text-zinc-400 italic text-center py-6">No recurring {type} items found.</p>
        )}
      </ul>
    );
@@ -761,22 +785,24 @@ const RecurringTab = React.memo(({ recurringData, onAddEdit, onDelete }) => {
 
   return (
      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-       {/* Recurring Income */}
-       <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 p-5 sm:p-6">
+       {/* Recurring Income - use rounded-2xl */}
+        <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 p-5 sm:p-6 transition hover:shadow-xl dark:hover:border-zinc-700">
          <div className="flex justify-between items-center mb-4">
            <h3 className="text-lg font-semibold text-zinc-800 dark:text-zinc-100">Recurring Income</h3>
-           <button onClick={() => onAddEdit('recurringIncome')} className="flex items-center gap-1 text-xs font-medium text-green-600 dark:text-green-500 bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded hover:bg-green-200 dark:hover:bg-green-900/50 transition">
+            {/* Polished Add button */}
+            <button onClick={() => onAddEdit('recurringIncome')} className="flex items-center gap-1 text-xs font-medium text-green-600 dark:text-green-500 bg-green-100 dark:bg-green-900/30 px-3 py-1 rounded-full hover:bg-green-200 dark:hover:bg-green-900/50 transition focus:outline-none focus:ring-1 focus:ring-green-500">
              <Plus size={12} /> Add
            </button>
          </div>
          {renderList(income, 'income')}
        </div>
 
-       {/* Recurring Expenses */}
-       <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 p-5 sm:p-6">
+       {/* Recurring Expenses - use rounded-2xl */}
+        <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 p-5 sm:p-6 transition hover:shadow-xl dark:hover:border-zinc-700">
          <div className="flex justify-between items-center mb-4">
            <h3 className="text-lg font-semibold text-zinc-800 dark:text-zinc-100">Recurring Expenses</h3>
-           <button onClick={() => onAddEdit('recurringExpense')} className="flex items-center gap-1 text-xs font-medium text-red-600 dark:text-red-500 bg-red-100 dark:bg-red-900/30 px-2 py-1 rounded hover:bg-red-200 dark:hover:bg-red-900/50 transition">
+            {/* Polished Add button */}
+            <button onClick={() => onAddEdit('recurringExpense')} className="flex items-center gap-1 text-xs font-medium text-red-600 dark:text-red-500 bg-red-100 dark:bg-red-900/30 px-3 py-1 rounded-full hover:bg-red-200 dark:hover:bg-red-900/50 transition focus:outline-none focus:ring-1 focus:ring-red-500">
              <Plus size={12} /> Add
            </button>
          </div>
@@ -787,6 +813,7 @@ const RecurringTab = React.memo(({ recurringData, onAddEdit, onDelete }) => {
 });
 
 // --- Transactions Tab ---
+// (Polished list items)
 const TransactionsTab = React.memo(({ transactions, income, onEdit, onDelete }) => {
   const allItems = useMemo(() => {
     const combined = [
@@ -797,26 +824,27 @@ const TransactionsTab = React.memo(({ transactions, income, onEdit, onDelete }) 
   }, [transactions, income]);
 
   return (
-     <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 p-5 sm:p-6">
+      <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 p-5 sm:p-6 transition hover:shadow-xl dark:hover:border-zinc-700">
        <h3 className="text-lg font-semibold mb-4 text-zinc-800 dark:text-zinc-100">Transaction History</h3>
        {allItems.length === 0 ? (
          <p className="text-sm text-zinc-500 dark:text-zinc-400 italic text-center py-8">No transactions or income recorded yet.</p>
        ) : (
-         <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
+          <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
            {allItems.map(item => (
-             <li key={item.id} className="flex items-center justify-between py-3 gap-4">
+              <li key={item.id} className="flex items-center justify-between py-3.5 gap-4 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 px-2 -mx-2 rounded-lg transition duration-150"> {/* Added hover bg and padding */}
                <div className="flex-1 min-w-0">
                  <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate">{item.title}</p>
-                 <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                 <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
                      {formatDate(item.date)} {item.category ? `· ${item.category}` : ''}
                  </p>
                </div>
-                <div className={`text-sm font-semibold flex-shrink-0 ${item.type === 'income' ? 'text-green-600 dark:text-green-500' : 'text-red-600 dark:text-red-400'}`}>
+                <div className={`text-sm font-semibold flex-shrink-0 w-24 text-right ${item.type === 'income' ? 'text-green-600 dark:text-green-500' : 'text-red-600 dark:text-red-400'}`}> {/* Fixed width for alignment */}
                      {item.type === 'income' ? '+' : '-'}{formatCurrency(Math.abs(item.amount))}
                  </div>
-               <div className="flex-shrink-0 flex gap-2">
-                 <button onClick={() => onEdit(item.type === 'income' ? 'income' : 'transaction', item)} className="p-1 text-zinc-500 hover:text-blue-600 dark:hover:text-sky-500 transition-colors"><Edit2 size={14} /></button>
-                 <button onClick={() => window.confirm(`Delete "${item.title}"?`) && onDelete(item.id)} className="p-1 text-zinc-500 hover:text-red-600 transition-colors"><Trash2 size={14} /></button>
+               <div className="flex-shrink-0 flex gap-2 ml-2">
+                  {/* Polished Edit/Delete buttons */}
+                  <button onClick={() => onEdit(item.type === 'income' ? 'income' : 'transaction', item)} className="p-1.5 text-zinc-500 hover:text-blue-600 dark:hover:text-sky-500 transition-colors rounded-full hover:bg-zinc-200 dark:hover:bg-zinc-700 focus:outline-none focus:ring-1 focus:ring-blue-500"><Edit2 size={14} /></button>
+                  <button onClick={() => window.confirm(`Delete "${item.title}"?`) && onDelete(item.id)} className="p-1.5 text-zinc-500 hover:text-red-600 transition-colors rounded-full hover:bg-red-100 dark:hover:bg-red-900/30 focus:outline-none focus:ring-1 focus:ring-red-500"><Trash2 size={14} /></button>
                </div>
              </li>
            ))}
@@ -827,6 +855,7 @@ const TransactionsTab = React.memo(({ transactions, income, onEdit, onDelete }) 
 });
 
 // --- Reports Tab ---
+// (Polished card styling)
 const ReportsTab = React.memo(({ monthlyHistory }) => {
    const chartData = useMemo(() => {
         return monthlyHistory.slice(-12).map(m => ({ // Last 12 months
@@ -846,7 +875,7 @@ const ReportsTab = React.memo(({ monthlyHistory }) => {
 
    return (
       <div className="space-y-8">
-          <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 p-5 sm:p-6">
+           <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 p-5 sm:p-6 transition hover:shadow-xl dark:hover:border-zinc-700">
               <h3 className="text-lg font-semibold mb-4 text-zinc-800 dark:text-zinc-100">Monthly Trends (Last 12 Months)</h3>
              {chartData.length >= 2 ? (
                  <ResponsiveContainer width="100%" height={250}>
@@ -855,23 +884,38 @@ const ReportsTab = React.memo(({ monthlyHistory }) => {
                           <XAxis dataKey="name" tick={{ fill: 'currentColor', fontSize: 10, opacity: 0.6 }} tickLine={false} axisLine={false} dy={10} />
                           <YAxis yAxisId="left" tick={{ fill: 'currentColor', fontSize: 10, opacity: 0.6 }} tickLine={false} axisLine={false} dx={-5} tickFormatter={(val) => `$${(val/1000).toFixed(0)}k`} />
                           <YAxis yAxisId="right" orientation="right" tick={{ fill: 'currentColor', fontSize: 10, opacity: 0.6 }} tickLine={false} axisLine={false} dx={5} tickFormatter={(val) => `${val}%`} domain={[0, 'auto']}/>
-                         <RechartsTooltip formatter={(value, name) => [name === 'Savings Rate' ? `${value.toFixed(1)}%` : formatCurrency(value), name]} />
+                          <RechartsTooltip
+                              contentStyle={{ backgroundColor: 'rgba(30, 41, 59, 0.85)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '0.75rem', fontSize: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.2)', backdropFilter: 'blur(4px)' }}
+                              labelStyle={{ color: '#E5E7EB', fontWeight: '600', marginBottom: '4px', display: 'block' }}
+                              itemStyle={{ color: '#F3F4F6' }}
+                              formatter={(value, name) => [name === 'Savings Rate' ? `${value.toFixed(1)}%` : formatCurrency(value), name]}
+                              cursor={{ stroke: 'hsl(var(--primary))', strokeWidth: 1, strokeDasharray: '3 3', opacity: 0.6 }}
+                          />
                           <Legend verticalAlign="top" height={30} iconSize={10} wrapperStyle={{ fontSize: '12px', color: 'currentColor', opacity: 0.8 }} />
-                          <Line yAxisId="left" type="monotone" dataKey="Income" stroke="#22C55E" strokeWidth={2} dot={false} />
-                          <Line yAxisId="left" type="monotone" dataKey="Expenses" stroke="#EF4444" strokeWidth={2} dot={false} />
-                         <Line yAxisId="right" type="monotone" dataKey="Savings Rate" stroke="#3B82F6" strokeWidth={2} strokeDasharray="3 3" dot={false} />
+                          <Line yAxisId="left" type="monotone" dataKey="Income" stroke="#22C55E" strokeWidth={2} dot={false} activeDot={{ r: 4 }}/>
+                          <Line yAxisId="left" type="monotone" dataKey="Expenses" stroke="#EF4444" strokeWidth={2} dot={false} activeDot={{ r: 4 }}/>
+                         <Line yAxisId="right" type="monotone" dataKey="Savings Rate" stroke="#3B82F6" strokeWidth={2} strokeDasharray="3 3" dot={false} activeDot={{ r: 4 }} />
                       </LineChart>
                  </ResponsiveContainer>
              ) : (
                  <p className="text-sm text-zinc-500 dark:text-zinc-400 italic text-center py-8">Not enough data for reports yet.</p>
              )}
          </div>
-         {/* Add more report cards/charts here later */}
-         <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 p-5 sm:p-6">
+
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 p-5 sm:p-6 transition hover:shadow-xl dark:hover:border-zinc-700">
               <h3 className="text-lg font-semibold mb-2 text-zinc-800 dark:text-zinc-100">Average Savings Rate</h3>
               <p className="text-3xl font-bold text-blue-600 dark:text-sky-500">{avgSavingsRate.toFixed(1)}%</p>
               <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">Based on the last 12 months of data.</p>
          </div>
+
+           {/* Placeholder for more insights */}
+           <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 p-8 text-center opacity-70 transition hover:shadow-xl dark:hover:border-zinc-700">
+               <Lightbulb className="mx-auto text-yellow-400 mb-3 w-8 h-8" />
+               <p className="text-sm text-zinc-600 dark:text-zinc-400 italic">
+                   More reports and budget insights coming soon.
+               </p>
+           </div>
+
       </div>
    );
 });

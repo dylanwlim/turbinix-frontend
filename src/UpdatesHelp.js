@@ -14,7 +14,7 @@ const upcomingFeatures = [
     icon: <Sparkles size={20} className="text-purple-500 dark:text-purple-400" />
   },
   {
-    title: "AI Sidekick Bot",
+    title: "AI Integration",
     description: "Ask natural language questions about your finances and get instant insights.",
     icon: <MessageSquare size={20} className="text-blue-500 dark:text-sky-400" />
   },
@@ -355,7 +355,7 @@ function UpdatesHelp() {
 
       {/* Footer */}
       <footer className="text-center text-xs text-zinc-500 dark:text-zinc-400 pt-10 pb-6 space-y-1 max-w-5xl mx-auto">
-          <p>Turbinix Beta Version 1.0</p>
+          <p>Turbinix Beta Version 1.1</p>
           <p>This is an early beta. Please let me know anything you want to see improved using the message box above — it helps a ton!</p>
       </footer>
 

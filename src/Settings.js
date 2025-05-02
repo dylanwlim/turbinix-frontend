@@ -442,7 +442,7 @@ function Settings() {
 
         {/* Footer */}
         <footer className="text-center text-xs text-zinc-500 dark:text-zinc-400 pt-10 pb-6 space-y-1">
-            <p>Turbinix Beta Version 1.0</p>
+            <p>Turbinix Beta Version 1.1</p>
             <p>This is an early beta. Please let me know anything you want to see improved — it helps a ton!</p>
         </footer>
 

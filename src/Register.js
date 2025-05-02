@@ -1,9 +1,10 @@
 // src/Register.js
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom'; // Import Link for legal links
 import { motion } from 'framer-motion';
-import ThemeToggle from './ThemeToggle';
+// ThemeToggle is rendered globally via App.js
 
+// Input Component remains the same
 const FormInput = ({ id, name, type, placeholder, value, onChange, required = true }) => (
   <div>
     <label htmlFor={id} className="sr-only">{placeholder}</label>
@@ -15,16 +16,17 @@ const FormInput = ({ id, name, type, placeholder, value, onChange, required = tr
       value={value}
       onChange={onChange}
       required={required}
-      className="w-full px-4 py-3 rounded-xl border bg-white dark:bg-gray-800/80 border-gray-300 dark:border-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition duration-150 ease-in-out text-sm md:text-base"
+      className="w-full px-4 py-3 rounded-lg border bg-white dark:bg-zinc-800/80 border-zinc-300 dark:border-zinc-700 focus:ring-2 focus:ring-blue-500 dark:focus:ring-sky-500 focus:border-transparent outline-none transition duration-150 ease-in-out text-sm placeholder-zinc-400 dark:placeholder-zinc-500"
     />
   </div>
 );
 
+// Button Component remains the same
 const ActionButton = ({ type = "submit", onClick, loading, loadingText, children, className = "", disabled = false }) => (
   <button
     type={type}
     onClick={onClick}
-    className={`w-full py-3 rounded-xl font-semibold bg-black text-white dark:bg-white dark:text-black transition duration-150 ease-in-out hover:scale-105 hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-900 ${className} ${loading || disabled ? 'opacity-70 cursor-not-allowed' : ''}`}
+    className={`w-full py-3 rounded-lg font-semibold bg-black text-white dark:bg-white dark:text-black transition duration-200 ease-in-out hover:scale-[1.03] hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-zinc-900 ${className} ${loading || disabled ? 'opacity-70 cursor-not-allowed' : ''}`}
     disabled={loading || disabled}
   >
     {loading ? (
@@ -55,7 +57,7 @@ function Register({ isAuthenticated }) {
     if (isAuthenticated) {
       redirectTimerId = setTimeout(() => {
         navigate(dashboardRoute, { replace: true });
-      }, 350);
+      }, 300);
     }
     return () => {
       if (redirectTimerId) {
@@ -121,7 +123,7 @@ function Register({ isAuthenticated }) {
       });
       const data = await response.json();
       if (response.ok) {
-        setSuccess('Account created successfully!');
+        setSuccess('Account created successfully! Redirecting to login...');
         setTimeout(() => navigate('/login'), 1500);
       } else {
         setError(data.message || data.error || 'Registration failed.');
@@ -137,22 +139,22 @@ function Register({ isAuthenticated }) {
   return (
     <div className="relative flex items-center justify-center min-h-screen bg-white/50 dark:bg-gray-950/50 backdrop-blur-sm px-4 py-12 overflow-hidden transition-colors duration-300">
       <motion.div
-        initial={{ opacity: 0, y: 24 }}
+        initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, ease: 'easeOut' }}
-        className="relative z-10 w-full max-w-md p-8 bg-white/70 dark:bg-black/50 backdrop-blur-lg rounded-3xl border border-gray-300 dark:border-white/10 shadow-xl"
+        transition={{ duration: 0.5, ease: 'easeOut' }}
+        className="relative z-10 w-full max-w-md p-8 bg-white/80 dark:bg-black/60 backdrop-blur-lg rounded-2xl border border-zinc-200 dark:border-white/10 shadow-xl"
       >
-        <h1 className="text-3xl md:text-4xl font-bold text-center text-gray-900 dark:text-white mb-6 glow-text-alt">
+        <h1 className="text-3xl md:text-4xl font-bold text-center text-zinc-900 dark:text-white mb-6 glow-text-alt">
           {step === 1 ? 'Create Your Account' : 'Verify Your Email'}
         </h1>
 
         {error && (
-          <div className="mb-4 bg-red-100 border border-red-300 text-red-800 dark:bg-red-900/30 dark:border-red-700/50 dark:text-red-300 p-3 rounded-lg text-sm text-center">
+          <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/40 border border-red-300 dark:border-red-700/50 text-red-800 dark:text-red-300 rounded-lg text-sm text-center">
             {error}
           </div>
         )}
         {success && !error && (
-          <div className="mb-4 bg-green-100 border border-green-300 text-green-800 dark:bg-green-900/30 dark:border-green-700/50 dark:text-green-300 p-3 rounded-lg text-sm text-center">
+          <div className="mb-4 p-3 bg-green-100 dark:bg-green-900/40 border border-green-300 dark:border-green-700/50 text-green-800 dark:text-green-300 rounded-lg text-sm text-center">
             {success}
           </div>
         )}
@@ -172,8 +174,8 @@ function Register({ isAuthenticated }) {
 
         {step === 2 && (
           <form onSubmit={(e) => { e.preventDefault(); verifyAndRegister(); }} className="space-y-4">
-            <p className="text-sm text-center text-gray-600 dark:text-gray-400 pb-2">
-              Enter the 6-digit code sent to <strong className="font-medium text-gray-800 dark:text-gray-200">{form.email}</strong>.
+            <p className="text-sm text-center text-zinc-600 dark:text-zinc-400 pb-2">
+              Enter the 6-digit code sent to <strong className="font-medium text-zinc-800 dark:text-zinc-200">{form.email}</strong>.
             </p>
             <FormInput id="code" name="code" type="text" placeholder="Verification Code" value={form.code} onChange={handleChange} />
             <div className="flex items-center justify-between text-sm pt-1">
@@ -181,14 +183,14 @@ function Register({ isAuthenticated }) {
                 type="button"
                 onClick={sendCode}
                 disabled={cooldown > 0 || loading}
-                className={`font-medium text-blue-600 dark:text-blue-400 hover:underline ${cooldown > 0 || loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`font-medium text-blue-600 dark:text-blue-400 hover:underline focus:outline-none focus:ring-1 focus:ring-blue-500 rounded ${cooldown > 0 || loading ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 {cooldown > 0 ? `Resend Code (${cooldown}s)` : 'Resend Code'}
               </button>
               <button
                 type="button"
                 onClick={() => { setStep(1); setError(''); setSuccess(''); }}
-                className="font-medium text-gray-600 dark:text-gray-400 hover:underline"
+                className="font-medium text-zinc-600 dark:text-zinc-400 hover:underline focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
                 disabled={loading}
               >
                 Edit Email/Info
@@ -200,11 +202,10 @@ function Register({ isAuthenticated }) {
           </form>
         )}
 
-        {/* Login Link */}
-        <div className="text-center mt-6 text-sm text-gray-600 dark:text-gray-400 space-y-3">
+        <div className="text-center mt-6 text-sm text-zinc-600 dark:text-zinc-400 space-y-3">
           <button
             onClick={() => navigate('/login')}
-            className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
+            className="text-blue-600 dark:text-blue-400 hover:underline font-medium focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
             disabled={loading && success}
           >
             Already have an account? Log In
@@ -212,16 +213,26 @@ function Register({ isAuthenticated }) {
           <div>
             <button
               onClick={() => navigate('/')}
-              className="text-gray-500 dark:text-gray-400 hover:text-blue-400 hover:scale-105 transform transition duration-300 ease-in-out text-sm"
+              className="text-zinc-500 dark:text-zinc-400 hover:text-blue-500 dark:hover:text-blue-400 transition duration-150 ease-in-out text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
             >
               ← Back to Home
             </button>
           </div>
         </div>
 
-      </motion.div>
+        {/* ⬇️ UPDATED FOOTER LEGAL LINKS ⬇️ */}
+        <div className="mt-8 pt-4 border-t border-zinc-200/50 dark:border-white/10 text-center text-xs text-zinc-500 dark:text-zinc-400 space-x-4">
+          <Link to="/privacy" className="hover:text-zinc-800 dark:hover:text-white hover:underline">Privacy Policy</Link>
+          <span>&middot;</span>
+          <Link to="/terms" className="hover:text-zinc-800 dark:hover:text-white hover:underline">Terms of Service</Link>
+        </div>
 
-      {/* ThemeToggle rendered globally */}
+        {/* Copyright */}
+        <div className="mt-4 text-center text-[11px] text-zinc-600 dark:text-zinc-500">
+          © Turbinix 2025. All rights reserved.
+        </div>
+
+      </motion.div>
     </div>
   );
 }
