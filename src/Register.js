@@ -49,8 +49,6 @@ function Register({ isAuthenticated }) {
   const [cooldown, setCooldown] = useState(0);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  // Assuming consent is implicitly given in step 1 for now. Add state and checkbox later if needed.
-  // const [agreedToTerms, setAgreedToTerms] = useState(false);
   const dashboardRoute = "/finance";
   // Ensure API_URL does NOT end with /api or a slash
   const API_URL = process.env.REACT_APP_API_URL || 'https://turbinix-backend.onrender.com';
@@ -83,7 +81,6 @@ function Register({ isAuthenticated }) {
   };
 
   const sendCode = async () => {
-    // TODO: Add checkbox and check `agreedToTerms` state here before sending
     if (!form.email) return setError('Please enter an email address.');
     if (!form.username) return setError('Please enter a username.');
     if (!form.firstName) return setError('Please enter your first name.');
@@ -94,9 +91,8 @@ function Register({ isAuthenticated }) {
     setError('');
     setSuccess('');
     try {
-      // --- CORRECTED FETCH URL ---
-      // Ensure we only add `/api/send-code` once to the base API_URL
-      const sendCodeUrl = `${API_URL}/api/send-code`;
+      // --- URL CONSTRUCTION ---
+      const sendCodeUrl = `${API_URL}/api/send-code`; // Explicitly construct path
       console.log("Attempting to send code to:", sendCodeUrl); // Debug log
       const response = await fetch(sendCodeUrl, {
       // --------------------------
@@ -105,21 +101,17 @@ function Register({ isAuthenticated }) {
         body: JSON.stringify({ email: form.email }),
       });
 
-      // Check response status before parsing JSON
       if (!response.ok) {
-          // Attempt to get error message from backend response body
           let errorMessage = `Error sending code: ${response.status} ${response.statusText}`;
           try {
               const errorData = await response.json();
               errorMessage = errorData.error || errorData.description || errorData.message || errorMessage;
           } catch (jsonError) {
-              // If parsing JSON fails, use the initial status text
               console.error("Failed to parse error response JSON:", jsonError);
           }
-          throw new Error(errorMessage); // Throw error to be caught below
+          throw new Error(errorMessage);
       }
 
-      // If response is OK, parse JSON
       const data = await response.json();
       setStep(2);
       setSuccess('Verification code sent to your email.');
@@ -127,7 +119,6 @@ function Register({ isAuthenticated }) {
 
     } catch (err) {
       console.error("Error sending verification code:", err);
-      // Display the error message thrown or a generic one
        setError(err.message || 'Network error or server unreachable.');
     } finally {
       setLoading(false);
@@ -147,11 +138,11 @@ function Register({ isAuthenticated }) {
         firstName: form.firstName,
         lastName: form.lastName,
         code: form.code,
-        consent: true, // Add consent field
+        consent: true, // Still assuming consent is implicitly true
       };
 
-      // --- CORRECTED FETCH URL ---
-      const registerUrl = `${API_URL}/api/register`;
+      // --- URL CONSTRUCTION ---
+      const registerUrl = `${API_URL}/api/register`; // Explicitly construct path
       console.log("Attempting to register with payload:", payload, "to URL:", registerUrl); // Debug log
       const response = await fetch(registerUrl, {
       // --------------------------
@@ -160,7 +151,6 @@ function Register({ isAuthenticated }) {
         body: JSON.stringify(payload),
       });
 
-      // Check response status before parsing JSON
       if (!response.ok) {
           let errorMessage = `Registration failed: ${response.status} ${response.statusText}`;
            try {
@@ -169,10 +159,9 @@ function Register({ isAuthenticated }) {
            } catch (jsonError) {
               console.error("Failed to parse error response JSON:", jsonError);
            }
-          throw new Error(errorMessage); // Throw error
+          throw new Error(errorMessage);
       }
 
-      // If response is OK, parse JSON
       const data = await response.json();
       setSuccess('Account created successfully! Redirecting to login...');
       setTimeout(() => navigate('/login'), 1500);
@@ -219,12 +208,10 @@ function Register({ isAuthenticated }) {
             </div>
             <FormInput id="password" name="password" type="password" placeholder="Password" value={form.password} onChange={handleChange} />
 
-             {/* Terms Agreement Text */}
-             <div className="text-xs text-zinc-500 dark:text-zinc-400 text-center pt-2">
-                By continuing, you agree to the Turbinix <Link to="/terms" className="underline hover:text-blue-500">Terms of Service</Link> and <Link to="/privacy" className="underline hover:text-blue-500">Privacy Policy</Link>.
-             </div>
+            {/* Removed the explicit "By continuing..." text */}
+            {/* You might still want a checkbox here later */}
 
-            <ActionButton loading={loading} loadingText="Sending Code...">Continue</ActionButton>
+            <ActionButton loading={loading} loadingText="Sending Code..." className="mt-6">Continue</ActionButton>
           </form>
         )}
 
@@ -278,7 +265,7 @@ function Register({ isAuthenticated }) {
           </div>
         </div>
 
-        {/* Footer Legal Links */}
+        {/* Footer Links (Kept as per previous version) */}
         <div className="mt-8 pt-4 border-t border-zinc-200/50 dark:border-white/10 text-center text-xs text-zinc-500 dark:text-zinc-400 space-x-4">
           <Link to="/privacy" className="hover:text-zinc-800 dark:hover:text-white hover:underline">Privacy Policy</Link>
           <span>&middot;</span>
