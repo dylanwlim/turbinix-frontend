@@ -6,12 +6,13 @@ import { motion } from 'framer-motion';
 
 function Login({ onLogin, isAuthenticated }) {
   const [form, setForm] = useState({ identifier: '', password: '' });
-  const [rememberMe, setRememberMe] = useState(false); // Restore remember me state
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const dashboardRoute = "/finance"; // Main dashboard route
 
+  // Base API URL (should NOT end with /api)
   const API_URL = process.env.REACT_APP_API_URL || 'https://turbinix-backend.onrender.com';
 
   // Redirect authenticated users
@@ -47,7 +48,11 @@ function Login({ onLogin, isAuthenticated }) {
     setError('');
 
     try {
-      const response = await fetch(`${API_URL}/login`, {
+      // --- CORRECTED FETCH URL ---
+      const loginUrl = `${API_URL}/api/login`; // Add /api/ prefix
+      console.log("Attempting login to:", loginUrl); // Debug log
+      const response = await fetch(loginUrl, {
+      // ---------------------------
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
@@ -56,27 +61,33 @@ function Login({ onLogin, isAuthenticated }) {
       const data = await response.json();
 
       if (response.ok) {
-        // Extract user info
-        const username = data.username || data.user?.username;
-        const firstName = data.first_name || data.user?.first_name || '';
-        const lastName = data.last_name || data.user?.last_name || '';
-        const fullName = `${firstName} ${lastName}`.trim();
+        // Extract user info safely
+        const user = data.user || {}; // Handle case where 'user' object might be missing
+        const username = user.username;
+        const firstName = user.firstName || '';
+        const lastName = user.lastName || '';
+        // Use provided fullName or construct it
+        const fullName = user.fullName || `${firstName} ${lastName}`.trim();
 
-        if (!username || !fullName) {
-            console.error("Missing user data in login response:", data);
-            setError("Login successful, but user data is incomplete.");
+
+        if (!username) { // Check if essential username is present
+            console.error("Missing username in login response:", data);
+            setError("Login successful, but critical user data is missing.");
             setLoading(false);
             return;
         }
-        // Pass rememberMe state if needed by onLogin
+
+        // Call the onLogin prop passed from App.js
         onLogin(username, fullName, rememberMe);
+        // Navigation will happen automatically in App.js due to state change
 
       } else {
-        setError(data.message || data.error || 'Invalid username/email or password.');
+          // Use error message from backend response if available
+          setError(data.error || data.description || data.message || `Login failed (${response.status})`);
       }
     } catch (err) {
       console.error("Login API call failed:", err);
-      setError('Something went wrong. Please try again later.');
+      setError(`Network error or server unreachable. ${err.message || ''}`);
     } finally {
       setLoading(false);
     }
