@@ -49,6 +49,8 @@ function Register({ isAuthenticated }) {
   const [cooldown, setCooldown] = useState(0);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  // Assuming consent is implicitly given in step 1 for now. Add state and checkbox later if needed.
+  // const [agreedToTerms, setAgreedToTerms] = useState(false);
   const dashboardRoute = "/finance";
   const API_URL = process.env.REACT_APP_API_URL || 'https://turbinix-backend.onrender.com';
 
@@ -80,10 +82,18 @@ function Register({ isAuthenticated }) {
   };
 
   const sendCode = async () => {
+    // TODO: Add checkbox and check `agreedToTerms` state here before sending
     if (!form.email) return setError('Please enter an email address.');
+    if (!form.username) return setError('Please enter a username.');
+    if (!form.firstName) return setError('Please enter your first name.');
+    if (!form.lastName) return setError('Please enter your last name.');
+    if (!form.password) return setError('Please enter a password.');
+
     setLoading(true);
+    setError('');
+    setSuccess('');
     try {
-      const response = await fetch(`${API_URL}/send-code`, {
+      const response = await fetch(`${API_URL}/api/send-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: form.email }),
@@ -94,11 +104,12 @@ function Register({ isAuthenticated }) {
         setSuccess('Verification code sent to your email.');
         setCooldown(60);
       } else {
-        setError(data.message || data.error || 'Error sending code.');
+         // Use specific error from backend if available
+        setError(data.error || data.description || data.message || 'Error sending code.');
       }
     } catch (err) {
-      console.error(err);
-      setError('Something went wrong.');
+      console.error("Error sending verification code:", err);
+       setError(`Network error or server unreachable. ${err.message || ''}`);
     } finally {
       setLoading(false);
     }
@@ -107,16 +118,22 @@ function Register({ isAuthenticated }) {
   const verifyAndRegister = async () => {
     if (!form.code) return setError('Please enter the verification code.');
     setLoading(true);
+    setError('');
+    setSuccess('');
     try {
+      // --- UPDATED PAYLOAD ---
       const payload = {
         username: form.username,
         email: form.email,
         password: form.password,
-        first_name: form.firstName,
-        last_name: form.lastName,
+        firstName: form.firstName, // Use camelCase to match backend check
+        lastName: form.lastName,   // Use camelCase to match backend check
         code: form.code,
+        consent: true, // Add consent field, assuming true for now
       };
-      const response = await fetch(`${API_URL}/register`, {
+      // -----------------------
+
+      const response = await fetch(`${API_URL}/api/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -126,11 +143,12 @@ function Register({ isAuthenticated }) {
         setSuccess('Account created successfully! Redirecting to login...');
         setTimeout(() => navigate('/login'), 1500);
       } else {
-        setError(data.message || data.error || 'Registration failed.');
+         // Use specific error from backend if available
+         setError(data.error || data.description || data.message || 'Registration failed.');
       }
     } catch (err) {
-      console.error(err);
-      setError('Something went wrong.');
+       console.error("Error verifying/registering:", err);
+       setError(`Network error or server unreachable. ${err.message || ''}`);
     } finally {
       setLoading(false);
     }
@@ -159,6 +177,7 @@ function Register({ isAuthenticated }) {
           </div>
         )}
 
+        {/* Step 1: Collect Info */}
         {step === 1 && (
           <form onSubmit={(e) => { e.preventDefault(); sendCode(); }} className="space-y-4">
             <FormInput id="email" name="email" type="email" placeholder="Email Address" value={form.email} onChange={handleChange} />
@@ -168,10 +187,21 @@ function Register({ isAuthenticated }) {
               <FormInput id="lastName" name="lastName" type="text" placeholder="Last Name" value={form.lastName} onChange={handleChange} />
             </div>
             <FormInput id="password" name="password" type="password" placeholder="Password" value={form.password} onChange={handleChange} />
+
+             {/* TODO: Add Terms Checkbox Here */}
+             <div className="text-xs text-zinc-500 dark:text-zinc-400 text-center pt-2">
+                By continuing, you agree to the Turbinix <Link to="/terms" className="underline hover:text-blue-500">Terms of Service</Link> and <Link to="/privacy" className="underline hover:text-blue-500">Privacy Policy</Link>.
+                {/* <label htmlFor="consentCheckbox" className="flex items-center mt-2 cursor-pointer">
+                  <input type="checkbox" id="consentCheckbox" checked={agreedToTerms} onChange={(e) => setAgreedToTerms(e.target.checked)} className="mr-2 h-4 w-4" />
+                  I agree to the Terms and Privacy Policy.
+                </label> */}
+             </div>
+
             <ActionButton loading={loading} loadingText="Sending Code...">Continue</ActionButton>
           </form>
         )}
 
+        {/* Step 2: Verify Code */}
         {step === 2 && (
           <form onSubmit={(e) => { e.preventDefault(); verifyAndRegister(); }} className="space-y-4">
             <p className="text-sm text-center text-zinc-600 dark:text-zinc-400 pb-2">
@@ -202,11 +232,12 @@ function Register({ isAuthenticated }) {
           </form>
         )}
 
+        {/* Links */}
         <div className="text-center mt-6 text-sm text-zinc-600 dark:text-zinc-400 space-y-3">
           <button
             onClick={() => navigate('/login')}
             className="text-blue-600 dark:text-blue-400 hover:underline font-medium focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
-            disabled={loading && success}
+            disabled={loading && success} // Prevent clicking while loading/showing success
           >
             Already have an account? Log In
           </button>
@@ -220,7 +251,7 @@ function Register({ isAuthenticated }) {
           </div>
         </div>
 
-        {/* ⬇️ UPDATED FOOTER LEGAL LINKS ⬇️ */}
+        {/* Footer Legal Links */}
         <div className="mt-8 pt-4 border-t border-zinc-200/50 dark:border-white/10 text-center text-xs text-zinc-500 dark:text-zinc-400 space-x-4">
           <Link to="/privacy" className="hover:text-zinc-800 dark:hover:text-white hover:underline">Privacy Policy</Link>
           <span>&middot;</span>
